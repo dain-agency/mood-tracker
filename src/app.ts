@@ -194,6 +194,19 @@ app.view<ViewSubmitAction>(
       channel: body.user.id,
       text: `✅ Mood logged: ${metadata.emoji}${contextValue ? ` - "${contextValue}"` : ""}`,
     });
+
+    // Post to mood channel if configured (so team can see who checked in)
+    const moodChannelId = process.env.MOOD_CHANNEL_ID;
+    if (moodChannelId) {
+      try {
+        await client.chat.postMessage({
+          channel: moodChannelId,
+          text: `*${displayName}* is feeling ${metadata.emoji} today${contextValue ? ` - "${contextValue}"` : ""}`,
+        });
+      } catch (channelError) {
+        console.log("Could not post to mood channel:", channelError);
+      }
+    }
   }
 );
 
@@ -241,6 +254,19 @@ app.view({ callback_id: "mood_context_modal", type: "view_closed" }, async ({ ac
       });
     } catch (updateError) {
       console.log("Could not update original message:", updateError);
+    }
+  }
+
+  // Post to mood channel if configured (so team can see who checked in)
+  const moodChannelId = process.env.MOOD_CHANNEL_ID;
+  if (moodChannelId) {
+    try {
+      await client.chat.postMessage({
+        channel: moodChannelId,
+        text: `*${displayName}* is feeling ${metadata.emoji} today`,
+      });
+    } catch (channelError) {
+      console.log("Could not post to mood channel:", channelError);
     }
   }
 });
