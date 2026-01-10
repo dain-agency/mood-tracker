@@ -192,7 +192,7 @@ app.view<ViewSubmitAction>(
     // Send confirmation DM
     await client.chat.postMessage({
       channel: body.user.id,
-      text: `✅ Mood logged: ${metadata.emoji}${contextValue ? ` - "${contextValue}"` : ""}`,
+      text: `✅ *${displayName}*, your mood has been logged: ${metadata.emoji}${contextValue ? ` - "${contextValue}"` : ""}`,
     });
 
     // Post to mood channel if configured (so team can see who checked in)
