@@ -43,7 +43,7 @@ const app = new App({
 });
 
 // Build the mood check-in message blocks
-function buildMoodMessage(): KnownBlock[] {
+function buildMoodMessage(sourceChannelId?: string): KnownBlock[] {
   return [
     {
       type: "section",
@@ -61,7 +61,7 @@ function buildMoodMessage(): KnownBlock[] {
           text: mood.emoji,
           emoji: true,
         },
-        value: JSON.stringify({ score: mood.score, emoji: mood.emoji }),
+        value: JSON.stringify({ score: mood.score, emoji: mood.emoji, source_channel_id: sourceChannelId }),
         action_id: mood.action_id,
       })),
     },
@@ -76,7 +76,10 @@ MOODS.forEach((mood) => {
     const userId = body.user.id;
     const moodData = JSON.parse(
       (body as any).actions[0].value
-    ) as { score: number; emoji: string };
+    ) as { score: number; emoji: string; source_channel_id?: string };
+
+    // Use source_channel_id from button value (for /mood command) or fall back to body.channel
+    const channelId = moodData.source_channel_id || (body as any).channel?.id;
 
     // Open modal for additional context
     await client.views.open({
@@ -85,8 +88,9 @@ MOODS.forEach((mood) => {
         type: "modal",
         callback_id: "mood_context_modal",
         private_metadata: JSON.stringify({
-          ...moodData,
-          channel_id: (body as any).channel?.id,
+          score: moodData.score,
+          emoji: moodData.emoji,
+          channel_id: channelId,
           message_ts: (body as any).message?.ts,
         }),
         title: {
@@ -167,6 +171,7 @@ app.view<ViewSubmitAction>(
 
     // Update the original message to show completion (only works for non-ephemeral messages)
     const displayName = userInfo.user?.profile?.display_name || userInfo.user?.profile?.real_name || "Someone";
+    let messageUpdated = false;
     if (metadata.channel_id && metadata.message_ts) {
       try {
         await client.chat.update({
@@ -183,9 +188,23 @@ app.view<ViewSubmitAction>(
           ],
           text: `Mood recorded: ${displayName} - ${metadata.emoji}`,
         });
+        messageUpdated = true;
       } catch (updateError) {
-        // Message might have been ephemeral - that's ok, user gets confirmation via app message
-        console.log("Could not update original message (likely ephemeral):", updateError);
+        // Message might have been ephemeral - will send ephemeral confirmation instead
+        console.log("Could not update original message (likely ephemeral)");
+      }
+    }
+
+    // Send ephemeral confirmation in the channel if we couldn't update the original message
+    if (!messageUpdated && metadata.channel_id) {
+      try {
+        await client.chat.postEphemeral({
+          channel: metadata.channel_id,
+          user: body.user.id,
+          text: `✅ *${displayName}*, your mood has been logged: ${metadata.emoji}${contextValue ? ` - "${contextValue}"` : ""}`,
+        });
+      } catch (ephemeralError) {
+        console.log("Could not send ephemeral confirmation:", ephemeralError);
       }
     }
 
@@ -236,6 +255,7 @@ app.view({ callback_id: "mood_context_modal", type: "view_closed" }, async ({ ac
 
   // Update original message if possible (only works for non-ephemeral messages)
   const displayName = userInfo.user?.profile?.display_name || userInfo.user?.profile?.real_name || "Someone";
+  let messageUpdated = false;
   if (metadata.channel_id && metadata.message_ts) {
     try {
       await client.chat.update({
@@ -252,9 +272,23 @@ app.view({ callback_id: "mood_context_modal", type: "view_closed" }, async ({ ac
         ],
         text: `Mood recorded: ${displayName} - ${metadata.emoji}`,
       });
+      messageUpdated = true;
     } catch (updateError) {
-      // Message might have been ephemeral - that's ok, user gets confirmation via app message
-      console.log("Could not update original message (likely ephemeral):", updateError);
+      // Message might have been ephemeral - will send ephemeral confirmation instead
+      console.log("Could not update original message (likely ephemeral)");
+    }
+  }
+
+  // Send ephemeral confirmation in the channel if we couldn't update the original message
+  if (!messageUpdated && metadata.channel_id) {
+    try {
+      await client.chat.postEphemeral({
+        channel: metadata.channel_id,
+        user: body.user.id,
+        text: `✅ *${displayName}*, your mood has been logged: ${metadata.emoji}`,
+      });
+    } catch (ephemeralError) {
+      console.log("Could not send ephemeral confirmation:", ephemeralError);
     }
   }
 
@@ -273,10 +307,10 @@ app.view({ callback_id: "mood_context_modal", type: "view_closed" }, async ({ ac
 });
 
 // Slash command to manually trigger a mood check-in
-app.command("/mood", async ({ ack, respond }) => {
+app.command("/mood", async ({ ack, respond, command }) => {
   await ack();
   await respond({
-    blocks: buildMoodMessage(),
+    blocks: buildMoodMessage(command.channel_id),
     response_type: "ephemeral",
   });
 });
