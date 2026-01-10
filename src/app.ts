@@ -3,6 +3,22 @@ import { KnownBlock } from "@slack/types";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import "dotenv/config";
 
+// Validate required environment variables
+const requiredEnvVars = [
+  "SLACK_BOT_TOKEN",
+  "SLACK_SIGNING_SECRET",
+  "SLACK_APP_TOKEN",
+  "SUPABASE_URL",
+  "SUPABASE_SERVICE_KEY",
+];
+
+const missingVars = requiredEnvVars.filter((v) => !process.env[v]);
+if (missingVars.length > 0) {
+  console.error("Missing required environment variables:", missingVars.join(", "));
+  console.error("Available env vars:", Object.keys(process.env).filter(k => k.includes("SLACK") || k.includes("SUPABASE")).join(", ") || "(none matching)");
+  process.exit(1);
+}
+
 // Mood configuration
 const MOODS = [
   { score: 1, emoji: "😭", label: "Awful", action_id: "mood_1" },
