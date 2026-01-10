@@ -1,0 +1,29 @@
+{
+  "name": "dain-mood-tracker",
+  "version": "1.0.0",
+  "description": "Daily mood check-in Slack bot for Dain team wellbeing",
+  "main": "dist/app.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/app.js",
+    "dev": "ts-node src/app.ts",
+    "send-checkins": "ts-node src/send-daily-checkins.ts"
+  },
+  "keywords": [
+    "slack",
+    "mood-tracker",
+    "wellbeing",
+    "dain"
+  ],
+  "author": "Dain",
+  "license": "MIT",
+  "dependencies": {
+    "@slack/bolt": "^4.6.0",
+    "@slack/types": "^2.19.0",
+    "@supabase/supabase-js": "^2.90.1",
+    "@types/node": "^25.0.5",
+    "dotenv": "^17.2.3",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
