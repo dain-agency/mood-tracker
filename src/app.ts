@@ -166,6 +166,7 @@ app.view<ViewSubmitAction>(
     }
 
     // Update the original message to show completion
+    const displayName = userInfo.user?.profile?.display_name || userInfo.user?.profile?.real_name || "Someone";
     if (metadata.channel_id && metadata.message_ts) {
       try {
         await client.chat.update({
@@ -176,11 +177,11 @@ app.view<ViewSubmitAction>(
               type: "section",
               text: {
                 type: "mrkdwn",
-                text: `✅ Thanks for checking in! You're feeling ${metadata.emoji} today.`,
+                text: `✅ *${displayName}* is feeling ${metadata.emoji} today.`,
               },
             },
           ],
-          text: `Mood recorded: ${metadata.emoji}`,
+          text: `Mood recorded: ${displayName} - ${metadata.emoji}`,
         });
       } catch (updateError) {
         // Message might have been in a DM or ephemeral
@@ -221,6 +222,7 @@ app.view({ callback_id: "mood_context_modal", type: "view_closed" }, async ({ ac
   }
 
   // Update original message if possible
+  const displayName = userInfo.user?.profile?.display_name || userInfo.user?.profile?.real_name || "Someone";
   if (metadata.channel_id && metadata.message_ts) {
     try {
       await client.chat.update({
@@ -231,11 +233,11 @@ app.view({ callback_id: "mood_context_modal", type: "view_closed" }, async ({ ac
             type: "section",
             text: {
               type: "mrkdwn",
-              text: `✅ Thanks for checking in! You're feeling ${metadata.emoji} today.`,
+              text: `✅ *${displayName}* is feeling ${metadata.emoji} today.`,
             },
           },
         ],
-        text: `Mood recorded: ${metadata.emoji}`,
+        text: `Mood recorded: ${displayName} - ${metadata.emoji}`,
       });
     } catch (updateError) {
       console.log("Could not update original message:", updateError);
