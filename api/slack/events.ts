@@ -58,6 +58,7 @@ function buildMoodMessage(sourceChannelId?: string, responseUrl?: string): Known
 const receiver = new ExpressReceiver({
   signingSecret: process.env.SLACK_SIGNING_SECRET!,
   processBeforeResponse: true,
+  endpoints: "/",
 });
 
 // Initialize Slack app with HTTP receiver
