@@ -1,4 +1,6 @@
 {
+  "buildCommand": "",
+  "outputDirectory": "",
   "crons": [
     {
       "path": "/api/cron/daily-checkin",
