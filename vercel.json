@@ -6,6 +6,5 @@
       "path": "/api/cron/daily-checkin",
       "schedule": "0 9 * * 1-5"
     }
-  ],
-  "cronTimezone": "Europe/London"
+  ]
 }
