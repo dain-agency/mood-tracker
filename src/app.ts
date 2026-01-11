@@ -195,16 +195,28 @@ app.view<ViewSubmitAction>(
       }
     }
 
-    // Send ephemeral confirmation in the channel if we couldn't update the original message
+    // Send confirmation in the channel if we couldn't update the original message
     if (!messageUpdated && metadata.channel_id) {
+      const confirmationText = `✅ *${displayName}*, your mood has been logged: ${metadata.emoji}${contextValue ? ` - "${contextValue}"` : ""}`;
+      const isDM = metadata.channel_id.startsWith("D");
+
       try {
-        await client.chat.postEphemeral({
-          channel: metadata.channel_id,
-          user: body.user.id,
-          text: `✅ *${displayName}*, your mood has been logged: ${metadata.emoji}${contextValue ? ` - "${contextValue}"` : ""}`,
-        });
-      } catch (ephemeralError) {
-        console.log("Could not send ephemeral confirmation:", ephemeralError);
+        if (isDM) {
+          // For DMs, use regular message (already private)
+          await client.chat.postMessage({
+            channel: metadata.channel_id,
+            text: confirmationText,
+          });
+        } else {
+          // For channels, use ephemeral (only visible to user)
+          await client.chat.postEphemeral({
+            channel: metadata.channel_id,
+            user: body.user.id,
+            text: confirmationText,
+          });
+        }
+      } catch (confirmError) {
+        console.log("Could not send confirmation:", confirmError);
       }
     }
 
@@ -279,16 +291,28 @@ app.view({ callback_id: "mood_context_modal", type: "view_closed" }, async ({ ac
     }
   }
 
-  // Send ephemeral confirmation in the channel if we couldn't update the original message
+  // Send confirmation in the channel if we couldn't update the original message
   if (!messageUpdated && metadata.channel_id) {
+    const confirmationText = `✅ *${displayName}*, your mood has been logged: ${metadata.emoji}`;
+    const isDM = metadata.channel_id.startsWith("D");
+
     try {
-      await client.chat.postEphemeral({
-        channel: metadata.channel_id,
-        user: body.user.id,
-        text: `✅ *${displayName}*, your mood has been logged: ${metadata.emoji}`,
-      });
-    } catch (ephemeralError) {
-      console.log("Could not send ephemeral confirmation:", ephemeralError);
+      if (isDM) {
+        // For DMs, use regular message (already private)
+        await client.chat.postMessage({
+          channel: metadata.channel_id,
+          text: confirmationText,
+        });
+      } else {
+        // For channels, use ephemeral (only visible to user)
+        await client.chat.postEphemeral({
+          channel: metadata.channel_id,
+          user: body.user.id,
+          text: confirmationText,
+        });
+      }
+    } catch (confirmError) {
+      console.log("Could not send confirmation:", confirmError);
     }
   }
 
