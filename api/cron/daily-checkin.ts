@@ -99,15 +99,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Filter out bots by checking user info
   const humanMembers: string[] = [];
+  const skippedMembers: { id: string; reason: string }[] = [];
+
   for (const memberId of allMembers) {
     try {
       const userInfo = await client.users.info({ user: memberId });
-      if (userInfo.user && !userInfo.user.is_bot && !userInfo.user.deleted) {
+      if (!userInfo.user) {
+        skippedMembers.push({ id: memberId, reason: "no user info" });
+      } else if (userInfo.user.is_bot) {
+        skippedMembers.push({ id: memberId, reason: "is_bot" });
+      } else if (userInfo.user.deleted) {
+        skippedMembers.push({ id: memberId, reason: "deleted" });
+      } else {
         humanMembers.push(memberId);
       }
-    } catch (error) {
-      // Skip users we can't fetch info for
-      console.log(`Could not fetch info for user ${memberId}`);
+    } catch (error: any) {
+      skippedMembers.push({ id: memberId, reason: `error: ${error.message}` });
     }
   }
 
@@ -127,6 +134,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   return res.status(200).json({
     message: `Daily check-in sent to ${results.filter(r => r.success).length}/${humanMembers.length} members`,
+    totalChannelMembers: allMembers.length,
+    skippedMembers,
     results
   });
 }
