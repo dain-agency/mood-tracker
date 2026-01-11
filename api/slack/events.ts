@@ -1,13 +1,28 @@
-import { App, ExpressReceiver, BlockAction, ViewSubmitAction } from "@slack/bolt";
-import { KnownBlock } from "@slack/types";
+import crypto from "crypto";
+import { WebClient } from "@slack/web-api";
 import { createClient } from "@supabase/supabase-js";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-// Initialize Supabase client
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!
-);
+// Initialize clients lazily
+let slackClient: WebClient | null = null;
+let supabaseClient: ReturnType<typeof createClient> | null = null;
+
+function getSlackClient() {
+  if (!slackClient) {
+    slackClient = new WebClient(process.env.SLACK_BOT_TOKEN);
+  }
+  return slackClient;
+}
+
+function getSupabase() {
+  if (!supabaseClient) {
+    supabaseClient = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_KEY!
+    );
+  }
+  return supabaseClient;
+}
 
 // Mood configuration
 const MOODS = [
@@ -18,9 +33,8 @@ const MOODS = [
   { score: 5, emoji: "😄", label: "Great", action_id: "mood_5" },
 ] as const;
 
-// Get time-appropriate greeting
+// Get time-appropriate greeting (UK timezone)
 function getGreeting(): string {
-  // Use UK timezone
   const ukTime = new Date().toLocaleString("en-GB", { timeZone: "Europe/London", hour: "numeric", hour12: false });
   const hour = parseInt(ukTime, 10);
   if (hour < 12) return "Good morning";
@@ -28,8 +42,8 @@ function getGreeting(): string {
   return "Good evening";
 }
 
-// Build the mood check-in message blocks
-function buildMoodMessage(sourceChannelId?: string, responseUrl?: string): KnownBlock[] {
+// Build mood message blocks
+function buildMoodMessage(sourceChannelId?: string, responseUrl?: string) {
   return [
     {
       type: "section",
@@ -41,12 +55,8 @@ function buildMoodMessage(sourceChannelId?: string, responseUrl?: string): Known
     {
       type: "actions",
       elements: MOODS.map((mood) => ({
-        type: "button" as const,
-        text: {
-          type: "plain_text" as const,
-          text: mood.emoji,
-          emoji: true,
-        },
+        type: "button",
+        text: { type: "plain_text", text: mood.emoji, emoji: true },
         value: JSON.stringify({ score: mood.score, emoji: mood.emoji, source_channel_id: sourceChannelId, response_url: responseUrl }),
         action_id: mood.action_id,
       })),
@@ -54,117 +64,178 @@ function buildMoodMessage(sourceChannelId?: string, responseUrl?: string): Known
   ];
 }
 
-// Create Express receiver for HTTP mode
-const receiver = new ExpressReceiver({
-  signingSecret: process.env.SLACK_SIGNING_SECRET!,
-  processBeforeResponse: true,
-  endpoints: "/",
-});
+// Verify Slack request signature
+function verifySlackSignature(req: VercelRequest, body: string): boolean {
+  const timestamp = req.headers["x-slack-request-timestamp"] as string;
+  const signature = req.headers["x-slack-signature"] as string;
+  const signingSecret = process.env.SLACK_SIGNING_SECRET!;
 
-// Initialize Slack app with HTTP receiver
-const app = new App({
-  token: process.env.SLACK_BOT_TOKEN,
-  receiver,
-});
+  if (!timestamp || !signature) return false;
 
-// Handle mood button clicks
-MOODS.forEach((mood) => {
-  app.action<BlockAction>(mood.action_id, async ({ ack, body, client }) => {
-    await ack();
+  // Check timestamp is within 5 minutes
+  const time = Math.floor(Date.now() / 1000);
+  if (Math.abs(time - parseInt(timestamp)) > 300) return false;
 
-    const moodData = JSON.parse(
-      (body as any).actions[0].value
-    ) as { score: number; emoji: string; source_channel_id?: string; response_url?: string };
+  const sigBasestring = `v0:${timestamp}:${body}`;
+  const mySignature = `v0=${crypto.createHmac("sha256", signingSecret).update(sigBasestring).digest("hex")}`;
 
-    const channelId = moodData.source_channel_id || (body as any).channel?.id;
+  return crypto.timingSafeEqual(Buffer.from(mySignature), Buffer.from(signature));
+}
 
-    await client.views.open({
-      trigger_id: (body as any).trigger_id,
-      view: {
-        type: "modal",
-        callback_id: "mood_context_modal",
-        private_metadata: JSON.stringify({
-          score: moodData.score,
-          emoji: moodData.emoji,
-          channel_id: channelId,
-          message_ts: (body as any).message?.ts,
-          response_url: moodData.response_url,
-        }),
-        title: {
-          type: "plain_text",
-          text: "Mood Check-in",
-        },
-        submit: {
-          type: "plain_text",
-          text: "Submit",
-        },
-        close: {
-          type: "plain_text",
-          text: "Skip",
-        },
-        blocks: [
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: `You selected *${moodData.emoji}* - thanks for sharing!`,
-            },
-          },
-          {
-            type: "input",
-            block_id: "context_block",
-            optional: true,
-            element: {
-              type: "plain_text_input",
-              action_id: "context_input",
-              multiline: true,
-              placeholder: {
-                type: "plain_text",
-                text: "Anything you'd like to add? (optional)",
-              },
-            },
-            label: {
-              type: "plain_text",
-              text: "Additional context",
-            },
-          },
-        ],
-      },
+// Handle slash commands
+async function handleSlashCommand(payload: any, res: VercelResponse) {
+  const { command, channel_id, response_url, user_id } = payload;
+
+  if (command === "/mood") {
+    return res.status(200).json({
+      response_type: "ephemeral",
+      blocks: buildMoodMessage(channel_id, response_url),
     });
-  });
-});
+  }
 
-// Handle modal submission
-app.view<ViewSubmitAction>(
-  "mood_context_modal",
-  async ({ ack, view, body, client }) => {
-    await ack();
+  if (command === "/my-moods") {
+    const { data, error } = await getSupabase()
+      .from("mood_entries")
+      .select("mood_emoji, mood_score, additional_context, recorded_at")
+      .eq("slack_user_id", user_id)
+      .order("recorded_at", { ascending: false })
+      .limit(7);
 
-    const metadata = JSON.parse(view.private_metadata);
-    const contextValue =
-      view.state.values.context_block?.context_input?.value || null;
+    if (error || !data?.length) {
+      return res.status(200).json({
+        response_type: "ephemeral",
+        text: "No mood entries found yet. Use `/mood` to log your first one!",
+      });
+    }
 
-    const userInfo = await client.users.info({ user: body.user.id });
+    const moodList = data
+      .map((entry) => {
+        const date = new Date(entry.recorded_at).toLocaleDateString("en-GB", {
+          weekday: "short", day: "numeric", month: "short",
+        });
+        const context = entry.additional_context ? ` - _"${entry.additional_context}"_` : "";
+        return `• ${date}: ${entry.mood_emoji}${context}`;
+      })
+      .join("\n");
+
+    const avgMood = data.reduce((sum, e) => sum + e.mood_score, 0) / data.length;
+
+    return res.status(200).json({
+      response_type: "ephemeral",
+      blocks: [{
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*Your recent moods* (last ${data.length} entries)\nAverage: ${avgMood.toFixed(1)}/5\n\n${moodList}`,
+        },
+      }],
+    });
+  }
+
+  return res.status(200).json({ text: "Unknown command" });
+}
+
+// Handle interactive components (button clicks, modal submissions)
+async function handleInteraction(payload: any, res: VercelResponse) {
+  const client = getSlackClient();
+  const supabase = getSupabase();
+
+  // Handle button clicks
+  if (payload.type === "block_actions") {
+    const action = payload.actions[0];
+    if (action.action_id.startsWith("mood_")) {
+      const moodData = JSON.parse(action.value);
+      const channelId = moodData.source_channel_id || payload.channel?.id;
+
+      await client.views.open({
+        trigger_id: payload.trigger_id,
+        view: {
+          type: "modal",
+          callback_id: "mood_context_modal",
+          private_metadata: JSON.stringify({
+            score: moodData.score,
+            emoji: moodData.emoji,
+            channel_id: channelId,
+            message_ts: payload.message?.ts,
+            response_url: moodData.response_url,
+          }),
+          title: { type: "plain_text", text: "Mood Check-in" },
+          submit: { type: "plain_text", text: "Submit" },
+          close: { type: "plain_text", text: "Skip" },
+          blocks: [
+            {
+              type: "section",
+              text: { type: "mrkdwn", text: `You selected *${moodData.emoji}* - thanks for sharing!` },
+            },
+            {
+              type: "input",
+              block_id: "context_block",
+              optional: true,
+              element: {
+                type: "plain_text_input",
+                action_id: "context_input",
+                multiline: true,
+                placeholder: { type: "plain_text", text: "Anything you'd like to add? (optional)" },
+              },
+              label: { type: "plain_text", text: "Additional context" },
+            },
+          ],
+        },
+      });
+    }
+    return res.status(200).send("");
+  }
+
+  // Handle modal submission
+  if (payload.type === "view_submission" && payload.view.callback_id === "mood_context_modal") {
+    const metadata = JSON.parse(payload.view.private_metadata);
+    const contextValue = payload.view.state.values.context_block?.context_input?.value || null;
+    const userId = payload.user.id;
+
+    // Save to Supabase in background
+    saveMoodEntry(client, supabase, userId, metadata, contextValue, payload.team?.id);
+
+    return res.status(200).send("");
+  }
+
+  // Handle modal close/skip
+  if (payload.type === "view_closed" && payload.view.callback_id === "mood_context_modal") {
+    const metadata = JSON.parse(payload.view.private_metadata);
+    const userId = payload.user.id;
+
+    // Save to Supabase in background (without context)
+    saveMoodEntry(client, supabase, userId, metadata, null, payload.team?.id);
+
+    return res.status(200).send("");
+  }
+
+  return res.status(200).send("");
+}
+
+// Save mood entry and send confirmations (runs after response)
+async function saveMoodEntry(
+  client: WebClient,
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  metadata: any,
+  contextValue: string | null,
+  teamId: string | undefined
+) {
+  try {
+    const userInfo = await client.users.info({ user: userId });
+    const displayName = userInfo.user?.profile?.display_name || userInfo.user?.profile?.real_name || "Someone";
 
     // Save to Supabase
-    const { error } = await supabase.from("mood_entries").insert({
-      slack_user_id: body.user.id,
+    await supabase.from("mood_entries").insert({
+      slack_user_id: userId,
       slack_username: userInfo.user?.name,
-      slack_display_name:
-        userInfo.user?.profile?.display_name ||
-        userInfo.user?.profile?.real_name,
+      slack_display_name: displayName,
       mood_score: metadata.score,
       mood_emoji: metadata.emoji,
       additional_context: contextValue,
-      slack_team_id: body.team?.id,
+      slack_team_id: teamId,
     });
 
-    if (error) {
-      console.error("Error saving mood entry:", error);
-      return;
-    }
-
-    const displayName = userInfo.user?.profile?.display_name || userInfo.user?.profile?.real_name || "Someone";
     let messageUpdated = false;
 
     // Try to update original message
@@ -173,20 +244,15 @@ app.view<ViewSubmitAction>(
         await client.chat.update({
           channel: metadata.channel_id,
           ts: metadata.message_ts,
-          blocks: [
-            {
-              type: "section",
-              text: {
-                type: "mrkdwn",
-                text: `✅ *${displayName}* is feeling ${metadata.emoji} today.`,
-              },
-            },
-          ],
+          blocks: [{
+            type: "section",
+            text: { type: "mrkdwn", text: `✅ *${displayName}* is feeling ${metadata.emoji} today.` },
+          }],
           text: `Mood recorded: ${displayName} - ${metadata.emoji}`,
         });
         messageUpdated = true;
-      } catch (updateError) {
-        console.log("Could not update original message (likely ephemeral)");
+      } catch (e) {
+        console.log("Could not update original message");
       }
     }
 
@@ -199,38 +265,28 @@ app.view<ViewSubmitAction>(
           await fetch(metadata.response_url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              text: confirmationText,
-              response_type: "ephemeral",
-            }),
+            body: JSON.stringify({ text: confirmationText, response_type: "ephemeral" }),
           });
-        } catch (responseUrlError) {
-          console.log("Could not send response_url confirmation:", responseUrlError);
+        } catch (e) {
+          console.log("Could not send response_url confirmation");
         }
       } else if (metadata.channel_id) {
         const isDM = metadata.channel_id.startsWith("D");
         try {
           if (isDM) {
-            await client.chat.postMessage({
-              channel: metadata.channel_id,
-              text: confirmationText,
-            });
+            await client.chat.postMessage({ channel: metadata.channel_id, text: confirmationText });
           } else {
-            await client.chat.postEphemeral({
-              channel: metadata.channel_id,
-              user: body.user.id,
-              text: confirmationText,
-            });
+            await client.chat.postEphemeral({ channel: metadata.channel_id, user: userId, text: confirmationText });
           }
-        } catch (confirmError) {
-          console.log("Could not send confirmation:", confirmError);
+        } catch (e) {
+          console.log("Could not send confirmation");
         }
       }
     }
 
-    // Send confirmation DM (app messages)
+    // Send DM confirmation
     await client.chat.postMessage({
-      channel: body.user.id,
+      channel: userId,
       text: `✅ *${displayName}*, your mood has been logged: ${metadata.emoji}${contextValue ? ` - "${contextValue}"` : ""}`,
     });
 
@@ -242,178 +298,65 @@ app.view<ViewSubmitAction>(
           channel: moodChannelId,
           text: `*${displayName}* is feeling ${metadata.emoji} today${contextValue ? ` - "${contextValue}"` : ""}`,
         });
-      } catch (channelError) {
-        console.log("Could not post to mood channel:", channelError);
+      } catch (e) {
+        console.log("Could not post to mood channel");
       }
     }
-  }
-);
-
-// Handle modal close/skip
-app.view({ callback_id: "mood_context_modal", type: "view_closed" }, async ({ ack, view, body, client }) => {
-  await ack();
-
-  const metadata = JSON.parse(view.private_metadata);
-  const userInfo = await client.users.info({ user: body.user.id });
-
-  // Save to Supabase without context
-  const { error } = await supabase.from("mood_entries").insert({
-    slack_user_id: body.user.id,
-    slack_username: userInfo.user?.name,
-    slack_display_name:
-      userInfo.user?.profile?.display_name ||
-      userInfo.user?.profile?.real_name,
-    mood_score: metadata.score,
-    mood_emoji: metadata.emoji,
-    additional_context: null,
-    slack_team_id: body.team?.id,
-  });
-
-  if (error) {
+  } catch (error) {
     console.error("Error saving mood entry:", error);
   }
+}
 
-  const displayName = userInfo.user?.profile?.display_name || userInfo.user?.profile?.real_name || "Someone";
-  let messageUpdated = false;
-
-  if (metadata.channel_id && metadata.message_ts) {
-    try {
-      await client.chat.update({
-        channel: metadata.channel_id,
-        ts: metadata.message_ts,
-        blocks: [
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: `✅ *${displayName}* is feeling ${metadata.emoji} today.`,
-            },
-          },
-        ],
-        text: `Mood recorded: ${displayName} - ${metadata.emoji}`,
-      });
-      messageUpdated = true;
-    } catch (updateError) {
-      console.log("Could not update original message (likely ephemeral)");
-    }
-  }
-
-  if (!messageUpdated) {
-    const confirmationText = `✅ *${displayName}*, your mood has been logged: ${metadata.emoji}`;
-
-    if (metadata.response_url) {
-      try {
-        await fetch(metadata.response_url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            text: confirmationText,
-            response_type: "ephemeral",
-          }),
-        });
-      } catch (responseUrlError) {
-        console.log("Could not send response_url confirmation:", responseUrlError);
-      }
-    } else if (metadata.channel_id) {
-      const isDM = metadata.channel_id.startsWith("D");
-      try {
-        if (isDM) {
-          await client.chat.postMessage({
-            channel: metadata.channel_id,
-            text: confirmationText,
-          });
-        } else {
-          await client.chat.postEphemeral({
-            channel: metadata.channel_id,
-            user: body.user.id,
-            text: confirmationText,
-          });
-        }
-      } catch (confirmError) {
-        console.log("Could not send confirmation:", confirmError);
-      }
-    }
-  }
-
-  // Post to mood channel if configured
-  const moodChannelId = process.env.MOOD_CHANNEL_ID;
-  if (moodChannelId) {
-    try {
-      await client.chat.postMessage({
-        channel: moodChannelId,
-        text: `*${displayName}* is feeling ${metadata.emoji} today`,
-      });
-    } catch (channelError) {
-      console.log("Could not post to mood channel:", channelError);
-    }
-  }
-});
-
-// Slash command: /mood
-app.command("/mood", async ({ ack, respond, command, payload }) => {
-  await ack();
-  await respond({
-    blocks: buildMoodMessage(command.channel_id, payload.response_url),
-    response_type: "ephemeral",
-  });
-});
-
-// Slash command: /my-moods
-app.command("/my-moods", async ({ ack, respond, command }) => {
-  await ack();
-
-  const { data, error } = await supabase
-    .from("mood_entries")
-    .select("mood_emoji, mood_score, additional_context, recorded_at")
-    .eq("slack_user_id", command.user_id)
-    .order("recorded_at", { ascending: false })
-    .limit(7);
-
-  if (error || !data?.length) {
-    await respond({
-      text: "No mood entries found yet. Use `/mood` to log your first one!",
-      response_type: "ephemeral",
-    });
-    return;
-  }
-
-  const moodList = data
-    .map((entry) => {
-      const date = new Date(entry.recorded_at).toLocaleDateString("en-GB", {
-        weekday: "short",
-        day: "numeric",
-        month: "short",
-      });
-      const context = entry.additional_context
-        ? ` - _"${entry.additional_context}"_`
-        : "";
-      return `• ${date}: ${entry.mood_emoji}${context}`;
-    })
-    .join("\n");
-
-  const avgMood = data.reduce((sum, e) => sum + e.mood_score, 0) / data.length;
-
-  await respond({
-    blocks: [
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: `*Your recent moods* (last ${data.length} entries)\nAverage: ${avgMood.toFixed(1)}/5\n\n${moodList}`,
-        },
-      },
-    ],
-    response_type: "ephemeral",
-  });
-});
-
-// Export Vercel handler
+// Main handler
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Handle Slack URL verification challenge
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  // Get raw body for signature verification
+  const rawBody = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
+
+  // Handle URL verification (doesn't need signature check)
   if (req.body?.type === "url_verification") {
     return res.status(200).json({ challenge: req.body.challenge });
   }
 
-  // Pass to Express receiver
-  await receiver.app(req, res);
+  // Verify signature for all other requests
+  // Note: Vercel parses the body, so we need to reconstruct it
+  // For form-urlencoded (slash commands, interactions), use the raw string
+  const contentType = req.headers["content-type"] || "";
+  let bodyForVerification = rawBody;
+
+  if (contentType.includes("application/x-www-form-urlencoded")) {
+    // Reconstruct form body for verification
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(req.body)) {
+      params.append(key, value as string);
+    }
+    bodyForVerification = params.toString();
+  }
+
+  if (!verifySlackSignature(req, bodyForVerification)) {
+    console.log("Signature verification failed");
+    return res.status(401).json({ error: "Invalid signature" });
+  }
+
+  // Handle slash commands (form-urlencoded)
+  if (req.body.command) {
+    return handleSlashCommand(req.body, res);
+  }
+
+  // Handle interactions (form-urlencoded with payload)
+  if (req.body.payload) {
+    const payload = JSON.parse(req.body.payload);
+    return handleInteraction(payload, res);
+  }
+
+  // Handle events API
+  if (req.body.type === "event_callback") {
+    // Handle events if needed
+    return res.status(200).send("");
+  }
+
+  return res.status(200).send("");
 }
