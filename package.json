@@ -25,6 +25,7 @@
     "@types/node": "^25.0.5",
     "@vercel/node": "^5.0.0",
     "dotenv": "^17.2.3",
+    "micro": "^10.0.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   }

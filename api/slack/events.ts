@@ -2,6 +2,14 @@ import crypto from "crypto";
 import { WebClient } from "@slack/web-api";
 import { createClient } from "@supabase/supabase-js";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { buffer } from "micro";
+
+// Disable Vercel's automatic body parsing
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
 
 // Initialize clients lazily
 let slackClient: WebClient | null = null;
@@ -313,47 +321,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // Get raw body for signature verification
-  const rawBody = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
+  // Read raw body for signature verification
+  const rawBody = (await buffer(req)).toString("utf-8");
+  const contentType = req.headers["content-type"] || "";
+
+  // Parse body based on content type
+  let body: any;
+  if (contentType.includes("application/json")) {
+    body = JSON.parse(rawBody);
+  } else if (contentType.includes("application/x-www-form-urlencoded")) {
+    body = Object.fromEntries(new URLSearchParams(rawBody));
+  } else {
+    body = rawBody;
+  }
 
   // Handle URL verification (doesn't need signature check)
-  if (req.body?.type === "url_verification") {
-    return res.status(200).json({ challenge: req.body.challenge });
+  if (body?.type === "url_verification") {
+    return res.status(200).json({ challenge: body.challenge });
   }
 
-  // Verify signature for all other requests
-  // Note: Vercel parses the body, so we need to reconstruct it
-  // For form-urlencoded (slash commands, interactions), use the raw string
-  const contentType = req.headers["content-type"] || "";
-  let bodyForVerification = rawBody;
-
-  if (contentType.includes("application/x-www-form-urlencoded")) {
-    // Reconstruct form body for verification
-    const params = new URLSearchParams();
-    for (const [key, value] of Object.entries(req.body)) {
-      params.append(key, value as string);
-    }
-    bodyForVerification = params.toString();
-  }
-
-  if (!verifySlackSignature(req, bodyForVerification)) {
+  // Verify signature using the raw body
+  if (!verifySlackSignature(req, rawBody)) {
     console.log("Signature verification failed");
     return res.status(401).json({ error: "Invalid signature" });
   }
 
   // Handle slash commands (form-urlencoded)
-  if (req.body.command) {
-    return handleSlashCommand(req.body, res);
+  if (body.command) {
+    return handleSlashCommand(body, res);
   }
 
   // Handle interactions (form-urlencoded with payload)
-  if (req.body.payload) {
-    const payload = JSON.parse(req.body.payload);
+  if (body.payload) {
+    const payload = JSON.parse(body.payload);
     return handleInteraction(payload, res);
   }
 
   // Handle events API
-  if (req.body.type === "event_callback") {
+  if (body.type === "event_callback") {
     // Handle events if needed
     return res.status(200).send("");
   }
