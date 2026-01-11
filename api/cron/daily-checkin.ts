@@ -52,7 +52,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
-  // Check for weekend skip
+  // Check for weekend skip (using UK timezone)
   if (process.env.SKIP_WEEKENDS === "true") {
     const ukDate = new Date().toLocaleString("en-GB", { timeZone: "Europe/London", weekday: "short" });
     if (ukDate === "Sat" || ukDate === "Sun") {
@@ -62,48 +62,71 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const client = new WebClient(process.env.SLACK_BOT_TOKEN);
   const blocks = buildMoodMessage();
-
   const results: { userId: string; success: boolean; error?: string }[] = [];
 
-  // Send to channel if configured
   const channelId = process.env.MOOD_CHANNEL_ID;
-  if (channelId) {
-    try {
-      await client.chat.postMessage({
-        channel: channelId,
-        blocks,
-        text: "How are you feeling today?",
-      });
-      results.push({ userId: `channel:${channelId}`, success: true });
-    } catch (error: any) {
-      results.push({ userId: `channel:${channelId}`, success: false, error: error.message });
-    }
-  }
 
-  // Send DMs to specific users
-  const userIds = process.env.MOOD_USER_IDS?.split(",").filter(Boolean) || [];
-  for (const userId of userIds) {
-    try {
-      await client.chat.postMessage({
-        channel: userId.trim(),
-        blocks,
-        text: "How are you feeling today?",
-      });
-      results.push({ userId: userId.trim(), success: true });
-    } catch (error: any) {
-      results.push({ userId: userId.trim(), success: false, error: error.message });
-    }
-  }
-
-  if (!channelId && userIds.length === 0) {
+  if (!channelId) {
     return res.status(200).json({
-      message: "No channel or users configured. Set MOOD_CHANNEL_ID or MOOD_USER_IDS.",
+      message: "No channel configured. Set MOOD_CHANNEL_ID to specify which channel's members should receive DMs.",
       results: []
     });
   }
 
+  // Fetch all members of the channel (handles pagination)
+  let allMembers: string[] = [];
+  let cursor: string | undefined;
+
+  try {
+    do {
+      const response = await client.conversations.members({
+        channel: channelId,
+        cursor,
+        limit: 200,
+      });
+
+      if (response.members) {
+        allMembers = allMembers.concat(response.members);
+      }
+      cursor = response.response_metadata?.next_cursor;
+    } while (cursor);
+  } catch (error: any) {
+    return res.status(500).json({
+      message: "Failed to fetch channel members",
+      error: error.message
+    });
+  }
+
+  // Filter out bots by checking user info
+  const humanMembers: string[] = [];
+  for (const memberId of allMembers) {
+    try {
+      const userInfo = await client.users.info({ user: memberId });
+      if (userInfo.user && !userInfo.user.is_bot && !userInfo.user.deleted) {
+        humanMembers.push(memberId);
+      }
+    } catch (error) {
+      // Skip users we can't fetch info for
+      console.log(`Could not fetch info for user ${memberId}`);
+    }
+  }
+
+  // Send DM to each human member
+  for (const userId of humanMembers) {
+    try {
+      await client.chat.postMessage({
+        channel: userId,
+        blocks,
+        text: "How are you feeling today?",
+      });
+      results.push({ userId, success: true });
+    } catch (error: any) {
+      results.push({ userId, success: false, error: error.message });
+    }
+  }
+
   return res.status(200).json({
-    message: "Daily check-in sent",
+    message: `Daily check-in sent to ${results.filter(r => r.success).length}/${humanMembers.length} members`,
     results
   });
 }
