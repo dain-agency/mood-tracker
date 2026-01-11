@@ -34,13 +34,21 @@ const MOODS = [
   { score: 5, emoji: "😄", action_id: "mood_5" },
 ];
 
+// Get time-appropriate greeting
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
 function buildMoodMessage(): KnownBlock[] {
   return [
     {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: "👋 *Good morning!* How are you feeling today?",
+        text: `👋 *${getGreeting()}!* How are you feeling today?`,
       },
     },
     {

@@ -42,6 +42,14 @@ const app = new App({
   appToken: process.env.SLACK_APP_TOKEN,
 });
 
+// Get time-appropriate greeting
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
 // Build the mood check-in message blocks
 function buildMoodMessage(sourceChannelId?: string, responseUrl?: string): KnownBlock[] {
   return [
@@ -49,7 +57,7 @@ function buildMoodMessage(sourceChannelId?: string, responseUrl?: string): Known
       type: "section",
       text: {
         type: "mrkdwn",
-        text: "👋 *Good morning!* How are you feeling today?",
+        text: `👋 *${getGreeting()}!* How are you feeling today?`,
       },
     },
     {
