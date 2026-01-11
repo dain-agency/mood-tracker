@@ -43,7 +43,7 @@ const app = new App({
 });
 
 // Build the mood check-in message blocks
-function buildMoodMessage(sourceChannelId?: string): KnownBlock[] {
+function buildMoodMessage(sourceChannelId?: string, responseUrl?: string): KnownBlock[] {
   return [
     {
       type: "section",
@@ -61,7 +61,7 @@ function buildMoodMessage(sourceChannelId?: string): KnownBlock[] {
           text: mood.emoji,
           emoji: true,
         },
-        value: JSON.stringify({ score: mood.score, emoji: mood.emoji, source_channel_id: sourceChannelId }),
+        value: JSON.stringify({ score: mood.score, emoji: mood.emoji, source_channel_id: sourceChannelId, response_url: responseUrl }),
         action_id: mood.action_id,
       })),
     },
@@ -76,7 +76,7 @@ MOODS.forEach((mood) => {
     const userId = body.user.id;
     const moodData = JSON.parse(
       (body as any).actions[0].value
-    ) as { score: number; emoji: string; source_channel_id?: string };
+    ) as { score: number; emoji: string; source_channel_id?: string; response_url?: string };
 
     // Use source_channel_id from button value (for /mood command) or fall back to body.channel
     const channelId = moodData.source_channel_id || (body as any).channel?.id;
@@ -92,6 +92,7 @@ MOODS.forEach((mood) => {
           emoji: moodData.emoji,
           channel_id: channelId,
           message_ts: (body as any).message?.ts,
+          response_url: moodData.response_url,
         }),
         title: {
           type: "plain_text",
@@ -196,33 +197,45 @@ app.view<ViewSubmitAction>(
     }
 
     // Send confirmation in the channel if we couldn't update the original message
-    if (!messageUpdated && metadata.channel_id) {
+    if (!messageUpdated) {
       const confirmationText = `✅ *${displayName}*, your mood has been logged: ${metadata.emoji}${contextValue ? ` - "${contextValue}"` : ""}`;
-      const isDM = metadata.channel_id.startsWith("D");
-      console.log(`Sending confirmation to channel: ${metadata.channel_id}, isDM: ${isDM}`);
 
-      try {
-        if (isDM) {
-          // For DMs, use regular message (already private)
-          await client.chat.postMessage({
-            channel: metadata.channel_id,
-            text: confirmationText,
+      // Use response_url if available (works for /mood command in any context including DMs)
+      if (metadata.response_url) {
+        try {
+          await fetch(metadata.response_url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              text: confirmationText,
+              response_type: "ephemeral",
+            }),
           });
-          console.log("DM confirmation sent successfully");
-        } else {
-          // For channels, use ephemeral (only visible to user)
-          await client.chat.postEphemeral({
-            channel: metadata.channel_id,
-            user: body.user.id,
-            text: confirmationText,
-          });
-          console.log("Ephemeral confirmation sent successfully");
+          console.log("Response URL confirmation sent successfully");
+        } catch (responseUrlError) {
+          console.log("Could not send response_url confirmation:", responseUrlError);
         }
-      } catch (confirmError) {
-        console.log("Could not send confirmation:", confirmError);
+      } else if (metadata.channel_id) {
+        // Fall back to posting to channel
+        const isDM = metadata.channel_id.startsWith("D");
+        try {
+          if (isDM) {
+            await client.chat.postMessage({
+              channel: metadata.channel_id,
+              text: confirmationText,
+            });
+          } else {
+            await client.chat.postEphemeral({
+              channel: metadata.channel_id,
+              user: body.user.id,
+              text: confirmationText,
+            });
+          }
+          console.log("Channel confirmation sent successfully");
+        } catch (confirmError) {
+          console.log("Could not send confirmation:", confirmError);
+        }
       }
-    } else {
-      console.log(`Skipping confirmation - messageUpdated: ${messageUpdated}, channel_id: ${metadata.channel_id}`);
     }
 
     // Send confirmation DM
@@ -297,27 +310,44 @@ app.view({ callback_id: "mood_context_modal", type: "view_closed" }, async ({ ac
   }
 
   // Send confirmation in the channel if we couldn't update the original message
-  if (!messageUpdated && metadata.channel_id) {
+  if (!messageUpdated) {
     const confirmationText = `✅ *${displayName}*, your mood has been logged: ${metadata.emoji}`;
-    const isDM = metadata.channel_id.startsWith("D");
 
-    try {
-      if (isDM) {
-        // For DMs, use regular message (already private)
-        await client.chat.postMessage({
-          channel: metadata.channel_id,
-          text: confirmationText,
+    // Use response_url if available (works for /mood command in any context including DMs)
+    if (metadata.response_url) {
+      try {
+        await fetch(metadata.response_url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: confirmationText,
+            response_type: "ephemeral",
+          }),
         });
-      } else {
-        // For channels, use ephemeral (only visible to user)
-        await client.chat.postEphemeral({
-          channel: metadata.channel_id,
-          user: body.user.id,
-          text: confirmationText,
-        });
+        console.log("Response URL confirmation sent successfully");
+      } catch (responseUrlError) {
+        console.log("Could not send response_url confirmation:", responseUrlError);
       }
-    } catch (confirmError) {
-      console.log("Could not send confirmation:", confirmError);
+    } else if (metadata.channel_id) {
+      // Fall back to posting to channel
+      const isDM = metadata.channel_id.startsWith("D");
+      try {
+        if (isDM) {
+          await client.chat.postMessage({
+            channel: metadata.channel_id,
+            text: confirmationText,
+          });
+        } else {
+          await client.chat.postEphemeral({
+            channel: metadata.channel_id,
+            user: body.user.id,
+            text: confirmationText,
+          });
+        }
+        console.log("Channel confirmation sent successfully");
+      } catch (confirmError) {
+        console.log("Could not send confirmation:", confirmError);
+      }
     }
   }
 
@@ -336,10 +366,10 @@ app.view({ callback_id: "mood_context_modal", type: "view_closed" }, async ({ ac
 });
 
 // Slash command to manually trigger a mood check-in
-app.command("/mood", async ({ ack, respond, command }) => {
+app.command("/mood", async ({ ack, respond, command, payload }) => {
   await ack();
   await respond({
-    blocks: buildMoodMessage(command.channel_id),
+    blocks: buildMoodMessage(command.channel_id, payload.response_url),
     response_type: "ephemeral",
   });
 });
