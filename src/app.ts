@@ -199,6 +199,7 @@ app.view<ViewSubmitAction>(
     if (!messageUpdated && metadata.channel_id) {
       const confirmationText = `✅ *${displayName}*, your mood has been logged: ${metadata.emoji}${contextValue ? ` - "${contextValue}"` : ""}`;
       const isDM = metadata.channel_id.startsWith("D");
+      console.log(`Sending confirmation to channel: ${metadata.channel_id}, isDM: ${isDM}`);
 
       try {
         if (isDM) {
@@ -207,6 +208,7 @@ app.view<ViewSubmitAction>(
             channel: metadata.channel_id,
             text: confirmationText,
           });
+          console.log("DM confirmation sent successfully");
         } else {
           // For channels, use ephemeral (only visible to user)
           await client.chat.postEphemeral({
@@ -214,10 +216,13 @@ app.view<ViewSubmitAction>(
             user: body.user.id,
             text: confirmationText,
           });
+          console.log("Ephemeral confirmation sent successfully");
         }
       } catch (confirmError) {
         console.log("Could not send confirmation:", confirmError);
       }
+    } else {
+      console.log(`Skipping confirmation - messageUpdated: ${messageUpdated}, channel_id: ${metadata.channel_id}`);
     }
 
     // Send confirmation DM
