@@ -200,8 +200,8 @@ async function handleInteraction(payload: any, res: VercelResponse) {
     const contextValue = payload.view.state.values.context_block?.context_input?.value || null;
     const userId = payload.user.id;
 
-    // Save to Supabase in background
-    saveMoodEntry(client, supabase, userId, metadata, contextValue, payload.team?.id);
+    // Save to Supabase and send confirmations (must await in serverless)
+    await saveMoodEntry(client, supabase, userId, metadata, contextValue, payload.team?.id);
 
     return res.status(200).send("");
   }
@@ -211,8 +211,8 @@ async function handleInteraction(payload: any, res: VercelResponse) {
     const metadata = JSON.parse(payload.view.private_metadata);
     const userId = payload.user.id;
 
-    // Save to Supabase in background (without context)
-    saveMoodEntry(client, supabase, userId, metadata, null, payload.team?.id);
+    // Save to Supabase and send confirmations (must await in serverless)
+    await saveMoodEntry(client, supabase, userId, metadata, null, payload.team?.id);
 
     return res.status(200).send("");
   }
