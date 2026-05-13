@@ -1,0 +1,169 @@
+name: Sync Claude Tooling
+
+on:
+  schedule:
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Pass --force to dain-claude upgrade (auto-remove deprecated, ignore local-edit warnings)'
+        required: false
+        default: 'false'
+
+concurrency:
+  group: sync-claude-tooling
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.CLAUDE_TOOLING_PAT || secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444  # v5
+        with:
+          # Node 22 is the active LTS and has native WebSocket. The CLI also
+          # ships its own `ws` transport (since 0.2.1) so it works on Node 20+
+          # locally, but CI runs on 22 as defense-in-depth.
+          node-version: '22'
+
+      - name: Bootstrap or upgrade dain-claude
+        run: |
+          set -e
+          FORCE='${{ github.event.inputs.force }}'
+
+          # Decision tree:
+          #   manifest present                              → upgrade (or upgrade --force if dispatch force=true)
+          #   no manifest, no .claude/                      → init (greenfield repo)
+          #   no manifest, .claude/ exists, force=true      → init --force (operator accepts overwrite)
+          #   no manifest, .claude/ exists, force=false     → fail with remedy (do not clobber)
+          if [ -f .dain-tooling-manifest.json ]; then
+            echo "Manifest present — running 'dain-claude upgrade'"
+            if [ "$FORCE" = "true" ]; then
+              npx -y @dain-os/claude-tooling@latest upgrade --force
+            else
+              npx -y @dain-os/claude-tooling@latest upgrade
+            fi
+          elif [ ! -d .claude ]; then
+            echo "::notice::Greenfield repo — bootstrapping via 'dain-claude init'"
+            npx -y @dain-os/claude-tooling@latest init
+          elif [ "$FORCE" = "true" ]; then
+            echo "::notice::.claude/ exists but no manifest. Operator opted in via force=true — running 'init --force'"
+            npx -y @dain-os/claude-tooling@latest init --force
+          else
+            echo "::error::.claude/ exists but no .dain-tooling-manifest.json. This repo was set up manually before claude-tooling existed."
+            echo "::error::To adopt the library snapshot (and potentially overwrite local edits), re-run this workflow via Actions → Run workflow → set 'force' to 'true'."
+            echo "::error::To leave the repo unmanaged, delete this workflow file."
+            exit 1
+          fi
+
+      - name: Detect changes
+        id: diff
+        run: |
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            CHANGED_FILES=$(git status --porcelain | wc -l | tr -d ' ')
+            echo "files=$CHANGED_FILES" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open PR
+        if: steps.diff.outputs.changed == 'true'
+        id: pr
+        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676  # v7
+        with:
+          token: ${{ secrets.CLAUDE_TOOLING_PAT || secrets.GITHUB_TOKEN }}
+          branch: chore/sync-claude-tooling
+          delete-branch: true
+          commit-message: 'chore(claude-tooling): sync .claude/ from library'
+          title: 'chore(claude-tooling): sync .claude/ from library'
+          body: |
+            Automated sync from the DainOS `claude_instructions_library`.
+
+            Updates `.claude/` assets (instructions, skills, agents, commands) to match
+            the latest library snapshot. ${{ steps.diff.outputs.files }} file(s) changed.
+
+            Run locally: `npx @dain-os/claude-tooling@latest upgrade`
+
+            Triggered by: ${{ github.event_name }}
+          committer: 'dainos-bot <bot@dain.agency>'
+          author: 'dainos-bot <bot@dain.agency>'
+          labels: |
+            automated
+            claude-tooling
+
+      - name: Enable auto-merge
+        if: steps.diff.outputs.changed == 'true' && steps.pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ secrets.CLAUDE_TOOLING_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr merge ${{ steps.pr.outputs.pull-request-number }} \
+            --auto \
+            --squash \
+            --delete-branch
+
+      - name: Ensure required labels exist
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ secrets.CLAUDE_TOOLING_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          # `gh label create --force` is idempotent: creates if absent, updates if present.
+          # Run on every invocation so downstream steps that reference labels can rely on
+          # their existence. Three labels:
+          #   - claude-tooling-sync-failed: marker on the failure-tracking issue
+          #   - automated: applied to all PRs and issues opened by this workflow
+          #   - claude-tooling: domain label on the sync PR
+          # Colours: red for failure, blue-grey for automation, neutral grey for domain.
+          gh label create claude-tooling-sync-failed \
+            --description "Auto-sync workflow has failed; opened/updated by sync-claude-tooling.yml" \
+            --color D73A4A --force
+          gh label create automated \
+            --description "Created or updated by a GitHub Action" \
+            --color BFD4F2 --force
+          gh label create claude-tooling \
+            --description "Touches the @dain-os/claude-tooling CLI or the .claude/ library snapshot" \
+            --color C5DEF5 --force
+
+      - name: Open or update failure-tracking issue
+        if: ${{ failure() }}
+        env:
+          GH_TOKEN: ${{ secrets.CLAUDE_TOOLING_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          TITLE="claude-tooling auto-sync failed"
+          BODY=$(printf 'Last run: [%s](%s/%s/actions/runs/%s)\n\nWorkflow `sync-claude-tooling.yml` failed at %s UTC. The job log contains the underlying error. Until this is resolved the daily `.claude/` library snapshot is NOT propagating into this repo.\n\nIf you fix the root cause, this issue will auto-close on the next successful run.' \
+            "$GITHUB_RUN_ID" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$(date -u +'%Y-%m-%d %H:%M')")
+          # Find an existing open tracker via exact title match (not label match);
+          # labels are decorative, jq-based exact match is the source of truth.
+          EXISTING=$(gh issue list --state open --limit 200 --json number,title --jq ".[] | select(.title == \"$TITLE\") | .number" | head -1)
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "$BODY"
+          else
+            gh issue create \
+              --title "$TITLE" \
+              --body "$BODY" \
+              --label claude-tooling-sync-failed \
+              --label automated
+          fi
+
+      - name: Close failure-tracking issue on recovery
+        if: ${{ success() }}
+        env:
+          GH_TOKEN: ${{ secrets.CLAUDE_TOOLING_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          TITLE="claude-tooling auto-sync failed"
+          EXISTING=$(gh issue list --state open --limit 200 --json number,title --jq ".[] | select(.title == \"$TITLE\") | .number" | head -1)
+          if [ -n "$EXISTING" ]; then
+            gh issue close "$EXISTING" --comment "Auto-sync recovered on run $GITHUB_RUN_ID. Closing."
+          fi
