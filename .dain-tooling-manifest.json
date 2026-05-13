@@ -1,0 +1,474 @@
+{
+  "schema_version": 1,
+  "installed_at": "2026-05-13T11:50:57.748Z",
+  "last_upgrade_at": "2026-05-13T11:50:57.748Z",
+  "library_snapshot_date": "2026-05-13",
+  "tooling_version": "0.2.1",
+  "project": {
+    "name": "mood-tracker",
+    "forge_project_id": null,
+    "tech": [
+      "nextjs",
+      "typescript",
+      "supabase"
+    ]
+  },
+  "files": [
+    {
+      "slug": "agent-code-reviewer",
+      "target_path": ".claude/agents/code-reviewer.md",
+      "library_version": 2,
+      "installed_sha": "a9791e86757d74336fb846377e1f88b1877b7d33c6de8507b99123c6ccfbddec",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.727Z"
+    },
+    {
+      "slug": "agent-index-updater",
+      "target_path": ".claude/agents/index-updater.md",
+      "library_version": 1,
+      "installed_sha": "d0cd98853f7336e508bbbf3487d8d006f99f5c559746abbd5871bddc555b9b73",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.727Z"
+    },
+    {
+      "slug": "agent-logger-fixer",
+      "target_path": ".claude/agents/logger-fixer.md",
+      "library_version": 1,
+      "installed_sha": "fab4a864bbe4ab13c0c4c04a01726a5ed94ddedc594d3507a6abf10e1d647ff8",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.728Z"
+    },
+    {
+      "slug": "agent-ship-api-builder",
+      "target_path": ".claude/agents/ship-api-builder.md",
+      "library_version": 3,
+      "installed_sha": "7f442ea76c491bb7e5f994269689cbb3295c35e4ec56bf2d7c94406abd1b8215",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.728Z"
+    },
+    {
+      "slug": "agent-ship-db-builder",
+      "target_path": ".claude/agents/ship-db-builder.md",
+      "library_version": 2,
+      "installed_sha": "47d40f97a9a011551edc63f59fdbf50b41274ddbe285611be73681be0e7c625f",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.729Z"
+    },
+    {
+      "slug": "agent-storybook-writer",
+      "target_path": ".claude/agents/storybook-writer.md",
+      "library_version": 1,
+      "installed_sha": "2991418c2e2f735603226da6c4a355c934d3de64db7f3ead5e2c9b5b6a18f71b",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.729Z"
+    },
+    {
+      "slug": "agent-test-writer",
+      "target_path": ".claude/agents/test-writer.md",
+      "library_version": 1,
+      "installed_sha": "ce7c1e86dfc2333bb76a8c0daf857b571d18f1ef3c8b448ba95967d3d7b4d15e",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.730Z"
+    },
+    {
+      "slug": "agent-typescript-fixer",
+      "target_path": ".claude/agents/typescript-fixer.md",
+      "library_version": 1,
+      "installed_sha": "00372afc07a54d8b60761a130f70c19e61afd3f65d842294d62880e9a33e2c9a",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.730Z"
+    },
+    {
+      "slug": "cmd-debug",
+      "target_path": ".claude/commands/debug.md",
+      "library_version": 1,
+      "installed_sha": "cb669d2ad1094743d926d29a3ce3813f69c73596623155b547576104b7f072a3",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.731Z"
+    },
+    {
+      "slug": "cmd-domain-gen",
+      "target_path": ".claude/commands/domain-gen.md",
+      "library_version": 1,
+      "installed_sha": "38595f0ce5bbff7c485c663c67497c2db6b4d76f3c09f95d8e9f6805173f99b8",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.731Z"
+    },
+    {
+      "slug": "cmd-fix-types",
+      "target_path": ".claude/commands/fix-types.md",
+      "library_version": 1,
+      "installed_sha": "17153cde0bb07e9c9c3110f3d9ecf04baa947a3b3d0b00aec4d1d5e06127f906",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.732Z"
+    },
+    {
+      "slug": "cmd-pr-checklist",
+      "target_path": ".claude/commands/pr-checklist.md",
+      "library_version": 1,
+      "installed_sha": "c03cf8eb01054887d7162d2afc53d2466b452f5b40499e17fc99d3ff3e8bc7c4",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.732Z"
+    },
+    {
+      "slug": "cmd-recap",
+      "target_path": ".claude/commands/recap.md",
+      "library_version": 1,
+      "installed_sha": "90bfd5b5b2f98a86d4c8e476e95e75faca6601aeb8c3e88fa586c9bfe369f3c7",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.732Z"
+    },
+    {
+      "slug": "cmd-review",
+      "target_path": ".claude/commands/review.md",
+      "library_version": 1,
+      "installed_sha": "64e9953f7aa0d0b63d26832068e9c9b0a49009c17e6589971aa858217804b959",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.733Z"
+    },
+    {
+      "slug": "cmd-rule-check",
+      "target_path": ".claude/commands/rule-check.md",
+      "library_version": 1,
+      "installed_sha": "484350ca294959e18a5742be30425ed85846774aae694754c55da6b9a032af78",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.733Z"
+    },
+    {
+      "slug": "cmd-ship",
+      "target_path": ".claude/commands/ship.md",
+      "library_version": 6,
+      "installed_sha": "ad97c6a157433937f126143a00f401fc3d7715bf28785c9f50cacf9ff72873dd",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.734Z"
+    },
+    {
+      "slug": "cmd-test",
+      "target_path": ".claude/commands/test.md",
+      "library_version": 1,
+      "installed_sha": "c3ade6033265c1ba7ad1e83e246733115445dd3340d3528b37431d17315c8e53",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.734Z"
+    },
+    {
+      "slug": "cmd-wrap-up",
+      "target_path": ".claude/commands/wrap-up.md",
+      "library_version": 2,
+      "installed_sha": "50c9c6cfca9b163292bfa968faa61f340e0a1cd112118ab21e217da8d13b7a41",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.734Z"
+    },
+    {
+      "slug": "hook-agent-scope-check",
+      "target_path": ".claude/hooks/agent-scope-check.sh",
+      "library_version": 1,
+      "installed_sha": "a0697e5806ab74edac3a2056f1578f8c94463defa1058f2edfc05bb89e83e355",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.735Z"
+    },
+    {
+      "slug": "hook-archetype-enforcement",
+      "target_path": ".claude/hooks/archetype-enforcement.sh",
+      "library_version": 1,
+      "installed_sha": "2e7267e71e95be340c5c5c3e0c7c0fbb3d60cd32de7a937f428a0bd0aa45340d",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.735Z"
+    },
+    {
+      "slug": "hook-block-dangerous",
+      "target_path": ".claude/hooks/block-dangerous.sh",
+      "library_version": 1,
+      "installed_sha": "56ceddaf12817c2fe8b731f84e32dec29341086851b8ebabeee103d593a82f2a",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.735Z"
+    },
+    {
+      "slug": "hook-changelog-gate",
+      "target_path": ".claude/hooks/changelog-gate.sh",
+      "library_version": 1,
+      "installed_sha": "2736d23c03fd99319738f2c52fe705be2c78518425cacdca5766e7531daa9db0",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.736Z"
+    },
+    {
+      "slug": "hook-changelog-reminder",
+      "target_path": ".claude/hooks/changelog-reminder.sh",
+      "library_version": 1,
+      "installed_sha": "13cded0b19efae998385a116e0e4ccab5e92ceaa421a07cca2e47b085754da4b",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.736Z"
+    },
+    {
+      "slug": "hook-commit-lint",
+      "target_path": ".claude/hooks/commit-lint.sh",
+      "library_version": 1,
+      "installed_sha": "3449801ebe96a76f9a5c74f7a9860185570e70c423de0c84e4a8bf903e66fccd",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.736Z"
+    },
+    {
+      "slug": "hook-eslint-on-commit",
+      "target_path": ".claude/hooks/eslint-on-commit.sh",
+      "library_version": 1,
+      "installed_sha": "a0199a3bce2aef298d8e5d37e512603bdaab855a2350d9d18e878e15acf71cdc",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.737Z"
+    },
+    {
+      "slug": "hook-feature-flag-consistency",
+      "target_path": ".claude/hooks/feature-flag-consistency.sh",
+      "library_version": 1,
+      "installed_sha": "ef6267a0fcd20556c50b9367dd49215d970018c7a5c8d714096dda863473c7d4",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.737Z"
+    },
+    {
+      "slug": "hook-gotchas-reminder",
+      "target_path": ".claude/hooks/gotchas-reminder.sh",
+      "library_version": 1,
+      "installed_sha": "4897a26ade7fb7875a90ce9fce1d24e044b5ac9279a1b6c9ccf660e868396e68",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.737Z"
+    },
+    {
+      "slug": "hook-import-hierarchy",
+      "target_path": ".claude/hooks/import-hierarchy.sh",
+      "library_version": 1,
+      "installed_sha": "b9ca582d0ce346988993f652b7e7aab55093345d5403266c90d711c8ba815caf",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.738Z"
+    },
+    {
+      "slug": "hook-index-update",
+      "target_path": ".claude/hooks/index-update.sh",
+      "library_version": 1,
+      "installed_sha": "ff3805db5997cad205b1f801b4c8c14faa5aabc99efb6948a0c093246b750001",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.738Z"
+    },
+    {
+      "slug": "hook-index-update-commit-gate",
+      "target_path": ".claude/hooks/index-update-commit-gate.sh",
+      "library_version": 1,
+      "installed_sha": "afaa182eb48097d22328b4a8f748464282ecb18a6aca305db7ae84e6c9fc20a5",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.738Z"
+    },
+    {
+      "slug": "hook-index-update-gate",
+      "target_path": ".claude/hooks/index-update-gate.sh",
+      "library_version": 1,
+      "installed_sha": "9e1bb1f216522fdb5edab5d6c736a30b76ae0106e5cc9d8324c24831c1c5fded",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.739Z"
+    },
+    {
+      "slug": "hook-placeholder-check",
+      "target_path": ".claude/hooks/placeholder-check.sh",
+      "library_version": 1,
+      "installed_sha": "9c12f6b20c731f870c932c6ee7633e6083f45a1a2d9c9b2d8034206586af11a2",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.739Z"
+    },
+    {
+      "slug": "hook-protected-branch-guard",
+      "target_path": ".claude/hooks/protected-branch-guard.sh",
+      "library_version": 1,
+      "installed_sha": "3249e44b71b6ff6d371be3c83ab2f264c683ec53908170083b0e18c7961f8f02",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.739Z"
+    },
+    {
+      "slug": "hook-route-group-guard",
+      "target_path": ".claude/hooks/route-group-guard.sh",
+      "library_version": 1,
+      "installed_sha": "b4b725e111ae6be25228a20eec76007173eede73e8a1d7ee01e1567d0e612507",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.740Z"
+    },
+    {
+      "slug": "hook-schema-check-gate",
+      "target_path": ".claude/hooks/schema-check-gate.sh",
+      "library_version": 1,
+      "installed_sha": "c844ae39b07ded8d546a642bd7e71a5a32c834c0dd7e533c255733a0ed522247",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.740Z"
+    },
+    {
+      "slug": "hook-schema-check-mark",
+      "target_path": ".claude/hooks/schema-check-mark.sh",
+      "library_version": 1,
+      "installed_sha": "427be7c95526857bd8ffc610439b7c3d3f4959508a87d3dafaec12590b663ac7",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.740Z"
+    },
+    {
+      "slug": "hook-security-scan",
+      "target_path": ".claude/hooks/security-scan.sh",
+      "library_version": 1,
+      "installed_sha": "2ee18a7a5a7e3cf33bb69695f2aaa12d80fc686e0df3dfc1e134a341c105b6ed",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.741Z"
+    },
+    {
+      "slug": "hook-session-start",
+      "target_path": ".claude/hooks/session-start.sh",
+      "library_version": 1,
+      "installed_sha": "52ded7271deaf1521b6fdcdad72c85f5780cbbd80fc92225b7e3ab45e80713c6",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.741Z"
+    },
+    {
+      "slug": "hook-supabase-types-commit-gate",
+      "target_path": ".claude/hooks/supabase-types-commit-gate.sh",
+      "library_version": 1,
+      "installed_sha": "75d8b1c7540488421da9bfcb0c760d8ed2a6d3a7977fa70b39f0b369fc7e1c6e",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.741Z"
+    },
+    {
+      "slug": "hook-supabase-types-gate",
+      "target_path": ".claude/hooks/supabase-types-gate.sh",
+      "library_version": 1,
+      "installed_sha": "de05c4d956f4d6847904f4aa183a0e92d5a82007bc6f5801cc705f2226ff44cc",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.742Z"
+    },
+    {
+      "slug": "hook-type-safety",
+      "target_path": ".claude/hooks/type-safety.sh",
+      "library_version": 1,
+      "installed_sha": "7893e21a29d5146e89a7804dcb114db227bd2436ad7c17cb1183e0ac0fcffd66",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.742Z"
+    },
+    {
+      "slug": "root-claude-md",
+      "target_path": "CLAUDE.md",
+      "library_version": 1,
+      "installed_sha": "d8bd57008fb1161b043e437e8ba0b2022c3dc8f6f159f56f8573540b76f392c7",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.743Z"
+    },
+    {
+      "slug": "rule-design-system",
+      "target_path": ".claude/rules/design-system.md",
+      "library_version": 1,
+      "installed_sha": "5b034708bbe9f858d746e8253da23763d725b39aa99ed6f7a48ef8cb767ad27c",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.743Z"
+    },
+    {
+      "slug": "rule-gotchas-gate",
+      "target_path": ".claude/rules/gotchas-gate.md",
+      "library_version": 1,
+      "installed_sha": "cddc80d40a39c44da3b69c11ba19ad70910c7bd50398eec40d67fe0152710464",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.744Z"
+    },
+    {
+      "slug": "rule-storybook-mcp-gate",
+      "target_path": ".claude/rules/storybook-mcp-gate.md",
+      "library_version": 1,
+      "installed_sha": "a6a794ffd97a1bc49b41d07e598819da250f3a4671cfc7b3037391cd43e06148",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.744Z"
+    },
+    {
+      "slug": "rule-ux-psychology-gate",
+      "target_path": ".claude/rules/ux-psychology-gate.md",
+      "library_version": 1,
+      "installed_sha": "1bebf49664f9b1bd71b59fbe14116c6b8de97ef925aafe4dc09ea4b33088a987",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.744Z"
+    },
+    {
+      "slug": "skill-clear-ui",
+      "target_path": ".claude/skills/clear-ui/SKILL.md",
+      "library_version": 1,
+      "installed_sha": "a0b55e56df5bf5408709d62b663570c7ed7be37a34672acd7de5c582f538709b",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.745Z"
+    },
+    {
+      "slug": "skill-dashboard-audit",
+      "target_path": ".claude/skills/dashboard-audit/SKILL.md",
+      "library_version": 1,
+      "installed_sha": "89a0ee57f7019bc32019152197d6586f8ecf76a8eadf675e1c14ada400a8dfab",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.745Z"
+    },
+    {
+      "slug": "skill-database-gotchas",
+      "target_path": ".claude/skills/database-gotchas/SKILL.md",
+      "library_version": 1,
+      "installed_sha": "f74cec28b0e985660fb9aa54a7f3aeb0574385c7dfb36920c781497a7b56020f",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.745Z"
+    },
+    {
+      "slug": "skill-frontend-gotchas",
+      "target_path": ".claude/skills/frontend-gotchas/SKILL.md",
+      "library_version": 1,
+      "installed_sha": "bdb1b5bc32ebb49792cc7085424cf7cf0cf87559e58bc47e80badc3c5cee4e3f",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.745Z"
+    },
+    {
+      "slug": "skill-spawn",
+      "target_path": ".claude/skills/spawn/SKILL.md",
+      "library_version": 1,
+      "installed_sha": "62da8f7c34eaebfcf8fd151423f53dd5c9948a1d4827464a245455c6d7bd0e8c",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.746Z"
+    },
+    {
+      "slug": "skill-storybook-gotchas",
+      "target_path": ".claude/skills/storybook-gotchas/SKILL.md",
+      "library_version": 1,
+      "installed_sha": "74810a63614d342023912460b006ae31aa52dd43e6e96ddb14f43339cbcbb0fe",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.746Z"
+    },
+    {
+      "slug": "skill-ux-discovery-questions",
+      "target_path": ".claude/skills/ux-discovery-questions/SKILL.md",
+      "library_version": 1,
+      "installed_sha": "3b8da4b04e63ea45f71e3ada3995b58aad02791a76eeba5202141a509a35b7f0",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.746Z"
+    },
+    {
+      "slug": "skill-ux-psychology",
+      "target_path": ".claude/skills/ux-psychology/SKILL.md",
+      "library_version": 1,
+      "installed_sha": "1f52ac9b6799e4c4e14c6d6706e0ceb87be8c17efa00e6f58c3c9e58aa65578c",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.747Z"
+    },
+    {
+      "slug": "skill-write-agent",
+      "target_path": ".claude/skills/write-agent/SKILL.md",
+      "library_version": 1,
+      "installed_sha": "bad1054fb5dd70aacbb1dde1c095fe936dd6c212cde039cb94f3a01f90ad671b",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.747Z"
+    },
+    {
+      "slug": "tmpl-domain-index",
+      "target_path": ".claude/templates/domain-index.md",
+      "library_version": 1,
+      "installed_sha": "370da52b1ff9cf5147dc2f6fa74192b22d6e5f98c31f55f64ced7a2c64f9aa08",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.747Z"
+    },
+    {
+      "slug": "tmpl-feature-brief",
+      "target_path": ".claude/templates/feature-brief.md",
+      "library_version": 1,
+      "installed_sha": "a1e558ffd102ce583a0a2762e95287a96cd46df8d7568994a2d966c1900ff1ed",
+      "marker": "managed",
+      "installed_at": "2026-05-13T11:50:57.748Z"
+    }
+  ]
+}
