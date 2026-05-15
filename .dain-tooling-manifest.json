@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "installed_at": "2026-05-13T11:50:57.748Z",
-  "last_upgrade_at": "2026-05-14T09:00:52.785Z",
-  "library_snapshot_date": "2026-05-14",
+  "last_upgrade_at": "2026-05-15T09:09:28.397Z",
+  "library_snapshot_date": "2026-05-15",
   "tooling_version": "0.2.1",
   "project": {
     "name": "mood-tracker",
@@ -559,6 +559,14 @@
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
     {
+      "slug": "register-github-app",
+      "target_path": ".claude/skills/register-github-app/SKILL.md",
+      "library_version": 1,
+      "installed_sha": "71c399778339544a67528ea22f2bc155867ccbb99f2ca81b85f26163d052f78f",
+      "marker": "managed",
+      "installed_at": "2026-05-15T09:09:28.397Z"
+    },
+    {
       "slug": "root-claude-md",
       "target_path": "CLAUDE.md",
       "library_version": 1,
@@ -735,6 +743,14 @@
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
     {
+      "slug": "skill-ship-architect-inline",
+      "target_path": ".claude/skills/ship-architect/SKILL.md",
+      "library_version": 1,
+      "installed_sha": "98e74b4265aded38af8e6313600c351fc0827336348e4e379720eba32bd2d597",
+      "marker": "managed",
+      "installed_at": "2026-05-15T09:09:28.397Z"
+    },
+    {
       "slug": "skill-ship-discovery-inline",
       "target_path": ".claude/skills/ship-discovery/SKILL.md",
       "library_version": 1,
@@ -753,8 +769,8 @@
     {
       "slug": "skill-ship-foreman",
       "target_path": ".claude/skills/ship-foreman/SKILL.md",
-      "library_version": 6,
-      "installed_sha": "0d7661cb51b9c15583de4b7d6e0b3a0d0ec1a11aee4004a25f80ab53f6fa3c03",
+      "library_version": 8,
+      "installed_sha": "243f75ddbf21745d09c70144ecdbdd20bf50947ba2e2919ba6dba11028285890",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
@@ -781,6 +797,14 @@
       "installed_sha": "613b2102c8c9a46378301a3946e3e04f1ec09fe6930934efc0d260cdad115384",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
+    },
+    {
+      "slug": "skill-ship-preflight-inline",
+      "target_path": ".claude/skills/ship-preflight/SKILL.md",
+      "library_version": 1,
+      "installed_sha": "c4c2effe698609c2dc1df3e716566443ef4985e2ce7a64b4760f5cc3aed3d6d1",
+      "marker": "managed",
+      "installed_at": "2026-05-15T09:09:28.397Z"
     },
     {
       "slug": "skill-ship-retrospective-inline",
@@ -845,6 +869,86 @@
       "installed_sha": "a1e558ffd102ce583a0a2762e95287a96cd46df8d7568994a2d966c1900ff1ed",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.748Z"
+    },
+    {
+      "slug": "user-cmd-autopilot",
+      "target_path": "~/.claude/commands/autopilot.md",
+      "library_version": 1,
+      "installed_sha": "969a5f9cbd8844c2f7cc6a3492b0684e5cc912fd631512bee50434d27ca3bace",
+      "marker": "managed",
+      "installed_at": "2026-05-15T09:09:28.397Z"
+    },
+    {
+      "slug": "user-cmd-dev-kb",
+      "target_path": "~/.claude/commands/dev-kb.md",
+      "library_version": 1,
+      "installed_sha": "d2c64c55c3e8cd201b3c8f764d14546ce9bb9e9fd2d718d7856210d85bf6826c",
+      "marker": "managed",
+      "installed_at": "2026-05-15T09:09:28.397Z"
+    },
+    {
+      "slug": "user-cmd-draft",
+      "target_path": "~/.claude/commands/draft.md",
+      "library_version": 1,
+      "installed_sha": "bdd98091947d2b051ca7932736852deb1763e88252427208a78b4e4e9d970f47",
+      "marker": "managed",
+      "installed_at": "2026-05-15T09:09:28.397Z"
+    },
+    {
+      "slug": "user-cmd-recap",
+      "target_path": "~/.claude/commands/recap.md",
+      "library_version": 1,
+      "installed_sha": "d70848475fb2282dae2c190221e96cd862b3a37c8fa6ca6fe531848c79866223",
+      "marker": "managed",
+      "installed_at": "2026-05-15T09:09:28.397Z"
+    },
+    {
+      "slug": "user-cmd-restart-dev",
+      "target_path": "~/.claude/commands/restart-dev.md",
+      "library_version": 1,
+      "installed_sha": "ac2a8deab82d57833d9f4795294701f9206ab434cea2daa32d2ba484b7442b5b",
+      "marker": "managed",
+      "installed_at": "2026-05-15T09:09:28.397Z"
+    },
+    {
+      "slug": "user-cmd-review-email",
+      "target_path": "~/.claude/commands/review-email.md",
+      "library_version": 1,
+      "installed_sha": "762846afe8bffc94f8c497ec7dce625f662c04dc3fa17ee944b919918a4854e2",
+      "marker": "managed",
+      "installed_at": "2026-05-15T09:09:28.397Z"
+    },
+    {
+      "slug": "user-cmd-worktree-cleanup",
+      "target_path": "~/.claude/commands/worktree-cleanup.md",
+      "library_version": 1,
+      "installed_sha": "249589ccf1c0281d3d851c1adb3380d0e4972573932c646763cd81dfd0c9d515",
+      "marker": "managed",
+      "installed_at": "2026-05-15T09:09:28.397Z"
+    },
+    {
+      "slug": "user-cmd-wrapup",
+      "target_path": "~/.claude/commands/wrapup.md",
+      "library_version": 1,
+      "installed_sha": "eacb39a3fd055e69aa801f71d918bdcfaf0c91693c3b607a416c4a5cc3cc8bd9",
+      "marker": "managed",
+      "installed_at": "2026-05-15T09:09:28.397Z"
+    },
+    {
+      "slug": "user-skill-e2etest",
+      "target_path": "~/.claude/skills/e2etest.md",
+      "library_version": 1,
+      "installed_sha": "8797bdfd95c9d92dc7263140c8cc0209ba3bced344ef5f1f16c010b64ae6880c",
+      "marker": "managed",
+      "installed_at": "2026-05-15T09:09:28.397Z"
+    },
+    {
+      "slug": "user-skill-gmail-drafter",
+      "target_path": "~/.claude/skills/gmail-drafter.md",
+      "library_version": 1,
+      "installed_sha": "693e02ce54146c7b19dc7294ffdadce7473d110e8008dce24c03b48412b74e23",
+      "marker": "managed",
+      "installed_at": "2026-05-15T09:09:28.397Z"
     }
   ]
 }

@@ -155,6 +155,18 @@ For each round in order:
 "Starting Round N: <round name> (<task count> tasks)"
 ```
 
+**Also append a one-line entry to a live progress log** so the user can `tail -f` it from a separate terminal during long Foreman runs (see PR #252 retrospective — the Foreman ran ~5 hours with no terminal output, leaving the user blind to progress). The file path is `<progress-file-path>.live.log`:
+
+```bash
+echo "[$(date -u +%H:%M:%SZ)] Round N (<round name>): dispatching <task count> builders" >> <progress-file>.live.log
+```
+
+Mirror this at the end of the round (after step 9 Record Progress):
+
+```bash
+echo "[$(date -u +%H:%M:%SZ)] Round N: done in Xm, K fix cycles, Y reviewer findings, advancing" >> <progress-file>.live.log
+```
+
 ### 2. Dispatch Builder Agents
 
 For each task in the round:
@@ -425,6 +437,8 @@ Route to the correct fixer:
 
 ### 9. Record Progress
 
+**Hard checkpoint — do this BEFORE moving to the next round, not in a batch at the end.** A missing telemetry row means the round is not complete. PR #252's retrospective documented Foreman populating these rows batch-style at the end of Phase 6, leaving the user without intermediate visibility and the retro without round-by-round signal.
+
 After the round (including any fixes):
 - Log round results to the progress file
 - **Update the Phase Telemetry table** in the progress file. Find the row for the round you just finished (e.g. `| 6. Build (Round A) | | | files: N changed / M LOC | reviewer cycles: K | |`) and fill it in:
@@ -436,7 +450,28 @@ After the round (including any fixes):
 
   This data is the customer of `ship-retrospective` — without it, retros fall back to reconstructing from `git log`, losing model + reviewer-cycle info.
 
+- **Verification gate:** before invoking step 1 (Announce) for the next round, re-read the progress file and confirm the row for the round you just finished now has all five columns populated (Model, Wall-clock, Output size, Interactions, Notes). If any are empty, fix the row before continuing. Do not proceed.
+
 - Commit progress: Stage only the files from this round's task `outputs` plus the progress file, then `git commit -m "feat(<scope>): complete round N — <round name>"`. Do NOT use `git add -A` — stage files explicitly to avoid committing secrets or large binaries.
+
+### 10. Final Whole-Feature Reviewer Panel (after the last round)
+
+**Mandatory before returning to the orchestrator.** Per-round panels only see one round's diff at a time; integration bugs that emerge across rounds are invisible to them. PR #252's per-round panels returned all PASS; the independent post-build panel found 3 BLOCKs, 1 HIGH, 3 MEDIUMs and 3 LOWs — every one of them an integration concern the per-round panels could not have seen.
+
+After the final round's step 9 completes:
+
+1. Compute the cumulative diff: `git diff origin/main...HEAD`.
+2. Dispatch the same 3 reviewers in parallel (one Agent call with three sub-uses):
+   - `ship-business-reviewer` — alignment against the FULL Feature Brief sections 1-6 (not a single round slice)
+   - `ship-quality-reviewer` — type safety, security, error handling, test coverage on the FULL diff
+   - `ship-context-mapper` — anchor placement + INDEX maintenance across all rounds
+3. Each reviewer gets: the cumulative diff, the FULL brief path (not a slice), their checklist.
+4. Wait for all three. Collate findings.
+5. Apply BLOCK fixes via `ship-structural-fixer` or the appropriate builder. Max 2 fix cycles.
+6. Re-run the same panel after fixes until all reviewers return SHIP or only LOW/WARN findings remain.
+7. Log the panel's findings + fix cycles to the progress file's `## Review Reports` section.
+
+Only then return to the orchestrator. If after 2 fix cycles any BLOCK remains, surface to the orchestrator with the BLOCK details — the orchestrator decides whether to proceed to Pre-Flight or stop for human review.
 
 ---
 
@@ -468,26 +503,25 @@ When a builder fails or `tsc --noEmit` fails after a round:
 ### tsc Failure
 
 1. Capture the **full error output** (all lines, not just the first error)
-2. **Filter out test file errors** — errors in `.test.ts`, `.test.tsx`, and `__tests__/` files are expected (vi.fn() type mismatches, "possibly undefined" on mock data) and do NOT need fixing. Only route errors from **production code** files.
-3. If only test files have errors → treat as PASS and continue
-4. For production file errors: identify which builder owns them and group by file
-5. Dispatch each builder with a structured prompt:
+2. **Treat test-file errors as real failures, not noise.** The project testing standards (`.claude/rules/testing-standards.md`) require "Same type safety standards as production code." A `noUncheckedIndexedAccess` regression in `*.test.ts` is a real bug — pre-emptively filtering test-file errors hides regressions like the one Pre-Flight missed on PR #252. Mirrors the ship-preflight Check 1 rule from U-1.
+3. Identify which builder owns each failing file and group by file
+4. Dispatch each builder with a structured prompt:
 
 ```
 "Fix TypeScript errors in your files from round N.
 
 ERRORS:
-<full tsc output filtered to this builder's production files — NOT test files>
+<full tsc output for this builder's files — sources AND tests>
 
 FILES YOU OWN:
-<list of files assigned to this builder>
+<list of files assigned to this builder, including .test.ts/.test.tsx siblings>
 
 IMPORTANT: Fix the root cause, not the symptom. If error A causes errors B and C, fix A first.
-Do NOT use 'any' or type assertions to silence errors."
+Do NOT use 'any' or type assertions to silence errors. Tests are held to the same standard."
 ```
 
-6. After fixes, re-run `tsc --noEmit` — if new errors appear in a different builder's files, route those too
-7. **Max 3 tsc fix cycles** — after that, log full error output for human review
+5. After fixes, re-run `tsc --noEmit` — if new errors appear in a different builder's files, route those too
+6. **Max 3 tsc fix cycles** — after that, log full error output for human review
 
 ### Test Failure
 
