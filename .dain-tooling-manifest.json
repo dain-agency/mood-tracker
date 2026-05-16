@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "installed_at": "2026-05-13T11:50:57.748Z",
-  "last_upgrade_at": "2026-05-15T09:09:28.397Z",
-  "library_snapshot_date": "2026-05-15",
+  "last_upgrade_at": "2026-05-16T08:38:54.742Z",
+  "library_snapshot_date": "2026-05-16",
   "tooling_version": "0.2.1",
   "project": {
     "name": "mood-tracker",
@@ -297,8 +297,8 @@
     {
       "slug": "cmd-wrap-up",
       "target_path": ".claude/commands/wrap-up.md",
-      "library_version": 2,
-      "installed_sha": "50c9c6cfca9b163292bfa968faa61f340e0a1cd112118ab21e217da8d13b7a41",
+      "library_version": 4,
+      "installed_sha": "9225a50c762801db3497d22f8ed3060ff302a937f710093d5388ecb96d344350",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.734Z"
     },

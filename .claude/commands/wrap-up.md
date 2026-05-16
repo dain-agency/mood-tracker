@@ -391,6 +391,129 @@ If the transaction fails, ROLLBACK and report the error to the user. Do NOT retr
 
 ---
 
+## Step 7.5: PR Review Feedback (DainOS reviewer A/B)
+
+For each PR opened or updated by commits pushed in this session, score any unscored DainOS-reviewer findings so we can tune the reviewer (and validate retiring Greptile by end of month).
+
+This step writes to `developer.pr_review_finding_feedback`.
+
+### 7.5a. Discover PRs touched this session
+
+For each branch pushed in Step 3, ask GitHub for the PR number:
+
+```bash
+gh pr view --json number,headRefName,headRefOid 2>/dev/null
+```
+
+If a worktree's branch has no PR, skip. Collect the set of `(repo, pr_number)` pairs.
+
+### 7.5b. Pull unscored findings
+
+For each `(repo, pr_number)`, query findings that have NOT yet been scored by this operator:
+
+```sql
+SELECT
+    f.id, f.severity, f.category, f.title, f.body, f.suggestion,
+    f.file, f.line, f.resolution_status,
+    r.commit_sha, r.created_at
+FROM developer.pr_review_findings f
+JOIN developer.pr_reviews r ON r.id = f.review_id
+WHERE r.repo = '<owner>/<repo>'
+  AND r.pr_number = <pr_number>
+  AND NOT EXISTS (
+      SELECT 1 FROM developer.pr_review_finding_feedback fb
+      WHERE fb.finding_id = f.id
+        AND fb.scored_by = '<operator_iam_user_id>'::uuid
+  )
+ORDER BY r.created_at DESC, f.severity;
+```
+
+If zero rows across all PRs, skip to Step 8 silently. **Do NOT prompt the user.**
+
+### 7.5c. Score findings (batched up to 4 per prompt)
+
+For each batch of up to four unscored findings, render the block below and ask one `AskUserQuestion` per finding (max 4 questions per call, the AskUserQuestion limit):
+
+```
+PR #<pr_number> · DainOS reviewer · finding <i>/<n>
+
+  Severity   <severity>
+  Category   <category>
+  File       <file>:<line>
+  Title      <title>
+
+  ----
+  <body, first 600 chars>
+  ----
+
+  Resolution status   <open | acknowledged | resolved>
+```
+
+`AskUserQuestion` shape for each finding. **Three of the four options are verdicts that get persisted; `Skip` is a sentinel that explicitly does NOT write a row** (see 7.5d). Keep these two groups separate when rendering — they have different semantics, and the DB's `verdict` CHECK constraint will reject anything other than the three real verdicts:
+
+- Question: `Score finding [<short_title>]?`
+- Header: `Score #<i>`
+- Options — **verdicts (persisted; must be one of these three exact strings to satisfy the CHECK constraint)**:
+  - `useful` — finding was correct and worth acting on
+  - `noise` — finding was technically correct but low value, or pointed at something out of scope
+  - `wrong` — finding was factually incorrect or based on a misreading
+- Options — **sentinel (NOT persisted)**:
+  - `Skip` — don't write a verdict for this finding (e.g., not enough context to judge). 7.5d MUST short-circuit before the INSERT for this value.
+
+After collecting answers, prompt once more for free-text notes (optional):
+
+- Question: `Any notes on this batch of findings? (e.g. "the critical was right in spirit but mechanism was wrong")`
+- Header: `Notes`
+- Options:
+  - `Skip notes`
+  - Free-text via the "Other" path (user types the note)
+
+The note applies to every scored finding in the batch (cheap path). If a user wants per-finding notes, they can pick "Other" on the question itself with text in the answer — handled naturally by AskUserQuestion's Other support.
+
+If there are more than 4 unscored findings, complete the first batch, then ask:
+
+- Question: `<remaining> more unscored findings on this PR. Continue scoring now?`
+- Options: `Score the next batch`, `Skip the rest for this session`.
+
+If "Skip the rest" → leave them unscored; they'll surface again on the next wrap-up.
+
+### 7.5d. Write verdicts
+
+Wrap all INSERTs in a single transaction:
+
+```sql
+BEGIN;
+
+INSERT INTO developer.pr_review_finding_feedback
+    (finding_id, scored_by, verdict, notes, reviewer_version, scored_at)
+VALUES
+    ('<finding_id>'::uuid, '<operator_iam_user_id>'::uuid, '<useful|noise|wrong>',
+     <NULL or batch_notes>, <NULL or reviewer_version>, NOW());
+
+-- Repeat per scored finding (UNIQUE(finding_id, scored_by) catches accidental re-scores
+-- with ON CONFLICT DO NOTHING if needed, but the 7.5b query already filters them out).
+
+COMMIT;
+```
+
+If a finding was marked `Skip`, do NOT insert a row — leaving it null in the DB means "not yet scored" and it'll resurface on the next session.
+
+`reviewer_version` is currently NULL until the DainOS reviewer starts publishing a version tag in its review comment. When that ships, parse it from the comment body and pass it through.
+
+### 7.5e. Report
+
+Add to the Step 9 summary block:
+
+```
+## PR Review Feedback (DainOS reviewer)
+| PR | Findings scored | useful / noise / wrong | Skipped |
+|----|-----------------|------------------------|---------|
+| #267 | 2 | 2 / 0 / 0 | 0 |
+| #269 | 5 | 1 / 1 / 2 | 1 |
+```
+
+---
+
 ## Step 8: Write Session Context
 
 INSERT one row into `developer.session_context`. Reuse all existing columns plus the new ones.
@@ -485,6 +608,13 @@ Present a concise summary:
 | [TASK-1] Title | in_progress → done | +1.5h | appended | set |
 | [TASK-2] Title | in_progress | +1.5h | appended | appended |
 
+## PR Review Feedback (DainOS reviewer)
+| PR | Findings scored | useful / noise / wrong | Skipped |
+|----|-----------------|------------------------|---------|
+| #267 | 2 | 2 / 0 / 0 | 0 |
+
+(Omit the whole section if no unscored findings were found in Step 7.5b.)
+
 ## Session Context
 Written to DainOS. Session: "<session_name>" (id: <uuid>)
 
@@ -508,3 +638,5 @@ Written to DainOS. Session: "<session_name>" (id: <uuid>)
 10. **UK English** in `description_client` and no em dashes. See `.claude/rules/copy-style.md`.
 11. `.worktrees/` directory is always untracked. Ignore it.
 12. If `~/.dain-os/wrap-up.json` is missing on a fresh machine, the operator-identity setup runs once before any wrap-up writes.
+13. **PR review feedback (Step 7.5) never prompts when there are zero unscored findings.** Don't add friction to wrap-ups that didn't touch a reviewed PR.
+14. **Skip = don't write a row.** A `pr_review_finding_feedback` row with a real verdict is a commitment. If the operator picks `Skip`, leave the finding unscored so it resurfaces next session.
