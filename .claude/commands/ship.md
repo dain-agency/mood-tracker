@@ -282,50 +282,15 @@ Update progress file. **Tell user:** "Plan complete. Task manifest at `<path>`. 
 
 ### Setup worktree
 
-```bash
-git checkout main
-git worktree add .worktrees/<feature-slug> -b feat/<feature-slug>
-cp apps/api/.env .worktrees/<feature-slug>/apps/api/.env
-cp apps/web/.env.local .worktrees/<feature-slug>/apps/web/.env.local
-```
+Invoke the `worktree` skill via the `Skill` tool with arguments `setup feat/<feature-slug>`. The skill owns the full setup recipe (worktree creation, hardlink-copy `node_modules`, env files, `prisma generate`, optional smoke test) and is the single source of truth for worktree gotchas. Do NOT inline a setup recipe here — it drifts. See `.claude/skills/worktree/SKILL.md`.
 
-### Inject worktree-specific env vars
+Worktree path produced by the skill: `.claude/worktrees/<feature-slug>/` (used by every step below — `<wt>` from here on).
 
-The web app reads `NEXT_PUBLIC_API_URL` to know where to talk to the API. Main's `.env.local` either omits this (defaulting to `http://localhost:3001`) or pins it to main's API. Either way it's wrong for a worktree using portless `*.dain-api.localhost:1355` host routing.
+**Note for resumes from older progress files:** earlier versions of /ship used `.worktrees/<feature-slug>/` (top-level) and appended a hardcoded `NEXT_PUBLIC_API_URL=https://<slug>.dain-api.localhost:1355` to `apps/web/.env.local`. Both are now obsolete — the path moved under `.claude/`, and the `dev.mjs` wrappers resolve the API URL at runtime via `portless get` (KB `31e0e6b0`). If you're resuming and find a baked URL or a `.worktrees/` path, the skill's setup will normalise it.
 
-**Append the worktree-scoped value:**
+### Verify boot before dispatching the foreman
 
-```bash
-echo "" >> .worktrees/<feature-slug>/apps/web/.env.local
-echo "# Auto-injected by /ship Phase 6 — branch-specific API host" >> .worktrees/<feature-slug>/apps/web/.env.local
-echo "NEXT_PUBLIC_API_URL=https://<feature-slug>.dain-api.localhost:1355" >> .worktrees/<feature-slug>/apps/web/.env.local
-```
-
-Without this, worktree web requests hit main's API (or nothing), authentication fails silently, and Phase 8 E2E will be unable to log in. This bug burned 60+ minutes on PR #140.
-
-### Install + verify
-
-```bash
-cd .worktrees/<feature-slug> && npm install
-cd .worktrees/<feature-slug>/apps/api && npx prisma generate
-cd .worktrees/<feature-slug>/apps/web && npx tsc --noEmit
-```
-
-### Worktree env smoke test
-
-Mirror the Phase 0.5 smoke test against the worktree before invoking the foreman:
-
-```bash
-cd .worktrees/<feature-slug>
-bash scripts/dev.sh > /tmp/ship-worktree-smoke.log 2>&1 &
-sleep 25
-# API: portless host routing — branch slug must resolve
-curl -fsS "https://<feature-slug>.dain-api.localhost:1355/health" --insecure > /dev/null && echo "API: OK" || echo "API: FAIL"
-# Web: same — branch slug must resolve
-curl -fsS "https://<feature-slug>.dain-web.localhost:1355/" --insecure > /dev/null && echo "WEB: OK" || echo "WEB: FAIL"
-```
-
-Kill the smoke processes after the check. If either fails, surface to the user before the foreman is dispatched. Builders can run without dev servers, but Phase 8 E2E cannot — fix it now.
+Run the skill's smoke-test block (see "Smoke test" in the worktree skill). If either dev server fails to boot, surface to the user before the foreman is dispatched. Builders can run without dev servers, but Phase 8 E2E cannot — fix it now.
 
 Copy the Feature Brief and Task Manifest into the worktree's `docs/plans/`.
 
@@ -394,11 +359,11 @@ This is the case that burned 60+ minutes on PR #140. **Boot failure is NOT a "sk
 
 If dev servers won't start, or the E2E agent reports it cannot reach the worktree's web app, or login fails:
 
-1. **Capture the diagnostic.** Save the dev-server logs, the failing curl, and the actual env vars present in the worktree (`grep -E "NEXT_PUBLIC|API_URL|DATABASE" .worktrees/<slug>/apps/web/.env.local`).
-2. **Run the Phase 6 worktree env smoke test** (above) again, this time keeping the logs.
-3. **Compare worktree env vars against main's.** Specifically: `NEXT_PUBLIC_API_URL`, `DATABASE_URL`, any `*_KEY` that maps to a hostname.
-4. **Surface the diagnostic to the user** with a one-line proposed fix. Example: "Worktree web defaults to `http://localhost:3001` (main's API port). Append `NEXT_PUBLIC_API_URL=https://<slug>.dain-api.localhost:1355` to the worktree's `.env.local` and re-run."
-5. **Apply the fix and retry.** Up to 2 retry attempts.
+1. **Capture the diagnostic.** Save the dev-server logs, the failing curl, and the actual env vars present in the worktree (`grep -E "API_URL|DATABASE|SUPABASE" .claude/worktrees/<slug>/apps/api/.env .claude/worktrees/<slug>/apps/web/.env.local`).
+2. **Re-run the worktree skill's smoke test** (see `.claude/skills/worktree/SKILL.md`) and keep the logs.
+3. **Check for baked URLs.** A baked `NEXT_PUBLIC_API_URL` in `apps/web/.env.local` defeats portless's per-worktree resolution. Run `grep '^NEXT_PUBLIC_API_URL=' .claude/worktrees/<slug>/apps/web/.env.local` — there should be no match. If one is present, delete it (the skill's setup step strips it, but a copy-from-main may re-introduce it).
+4. **Compare other env vars against main's.** Specifically `DATABASE_URL` and any `*_KEY` that maps to a hostname.
+5. **Surface the diagnostic to the user** with a one-line proposed fix. Apply and retry — up to 2 attempts.
 
 If after 2 retries the env still won't boot, that's a *genuine* infrastructure issue, not a config gap. **Only then** is this an option:
 - **(c) Acknowledged-deferral with mandatory follow-up PRD.** Stop, file a follow-up PRD in `docs/prds/` describing the env block and what's needed to unblock. Add a `tests-deferred` line to the Suggestions section of the progress file. Surface to user: "E2E unbootable after 2 retries due to <specific blocker>. Filed PRD-NNN. Recommend you test the running app manually in Phase 9 with extra scrutiny on <affected journeys>."
@@ -481,24 +446,17 @@ gh pr merge <pr-number> --squash --delete-branch
 ### Post-merge cleanup
 
 ```bash
-# Kill dev servers (Windows/MINGW compatible)
-for PORT in 3001 3002; do
-  PID=$(netstat -ano 2>/dev/null | grep ":${PORT}.*LISTEN" | awk '{print $5}' | head -1)
-  [ -n "$PID" ] && taskkill //PID "$PID" //F 2>/dev/null
-done
-
 # Update main
 cd <repo-root>
 git checkout main && git pull --ff-only
 
-# Regenerate Prisma if schema changed
+# Regenerate Prisma in main if schema changed (matters for the tsc-on-commit hook in other worktrees — KB b3845a30)
 if git show HEAD --name-only | grep -q "prisma/schema.prisma"; then
-  cd apps/api && npx prisma generate && cd ../..
+  (cd apps/api && npx prisma generate)
 fi
-
-# Remove worktree
-git worktree remove .worktrees/<feature-slug>
 ```
+
+Then invoke the `worktree` skill via the `Skill` tool with arguments `cleanup <feature-slug>`. The skill kills any dev processes rooted in the worktree, removes the worktree, deletes the merged branch, and prunes stale metadata. It always confirms before destructive steps — do NOT pre-approve. See `.claude/skills/worktree/SKILL.md`.
 
 **Tell user:** "Ship complete. PR #<number> merged. Worktree cleaned up."
 

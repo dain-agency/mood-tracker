@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "installed_at": "2026-05-13T11:50:57.748Z",
-  "last_upgrade_at": "2026-05-16T08:38:54.742Z",
-  "library_snapshot_date": "2026-05-16",
+  "last_upgrade_at": "2026-05-17T08:46:53.466Z",
+  "library_snapshot_date": "2026-05-17",
   "tooling_version": "0.2.1",
   "project": {
     "name": "mood-tracker",
@@ -273,8 +273,8 @@
     {
       "slug": "cmd-ship",
       "target_path": ".claude/commands/ship.md",
-      "library_version": 6,
-      "installed_sha": "ad97c6a157433937f126143a00f401fc3d7715bf28785c9f50cacf9ff72873dd",
+      "library_version": 7,
+      "installed_sha": "474ebd80ee6afaa50a16824bad80e7a85760b4739bf0a00f39fb7c503bb55251",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.734Z"
     },
@@ -329,8 +329,8 @@
     {
       "slug": "hook-block-dangerous",
       "target_path": ".claude/hooks/block-dangerous.sh",
-      "library_version": 1,
-      "installed_sha": "56ceddaf12817c2fe8b731f84e32dec29341086851b8ebabeee103d593a82f2a",
+      "library_version": 2,
+      "installed_sha": "d7635447beccaed7c6dedc5481acee3df439c92646586105f1e7fd0f556c0750",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.735Z"
     },
@@ -845,6 +845,14 @@
       "installed_sha": "1f52ac9b6799e4c4e14c6d6706e0ceb87be8c17efa00e6f58c3c9e58aa65578c",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.747Z"
+    },
+    {
+      "slug": "skill-worktree",
+      "target_path": ".claude/skills/worktree/SKILL.md",
+      "library_version": 3,
+      "installed_sha": "7b372ff879e8f3506997bbc34be1bceb0ae47ba18bf852c619ddaf7996a15a07",
+      "marker": "managed",
+      "installed_at": "2026-05-17T08:46:53.466Z"
     },
     {
       "slug": "skill-write-agent",
