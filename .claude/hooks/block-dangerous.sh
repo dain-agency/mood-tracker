@@ -100,15 +100,28 @@ done
 # SENSITIVE FILE ACCESS - BLOCK
 # =============================================================================
 
-# Block reading .env files
-if echo "$command" | grep -qE "(cat|head|tail|less|more|bat|vim|nano|code).*\.env" 2>/dev/null; then
-    echo "=============================================================================" >&2
-    echo "  BLOCKED: Cannot read .env files" >&2
-    echo "=============================================================================" >&2
-    echo "" >&2
-    echo "Environment files contain secrets." >&2
-    echo "Use process.env.VARIABLE_NAME in code instead." >&2
-    exit 2
+# Block reading .env files.
+#
+# Safe-context skip: writing or referencing the literal string ".env" inside a
+# commit/tag/PR/issue body, a heredoc, an echo/printf, or a documentation file
+# is not a secret read. The original regex matched the substring anywhere in
+# the command, which caused false positives like:
+#   git commit -m "$(cat <<EOF ... mentions .env ... EOF)"
+#   gh pr create --body "... touches .env.local ..."
+# Both contain `cat` and `.env` but neither reads a secrets file.
+if ! echo "$command" | grep -qE '(^|[[:space:]])(git[[:space:]]+(commit|tag|log|show|format-patch)|gh[[:space:]]+(pr|issue|release)[[:space:]]+(create|edit|comment)|echo|printf)([[:space:]]|$)' 2>/dev/null \
+   && ! echo "$command" | grep -qE '<<-?[[:space:]]*'\''?[A-Za-z_]' 2>/dev/null; then
+    # Match the readers when .env appears as a file argument (word-boundaried),
+    # not as a substring of a longer token like `.environment` or `.envoy`.
+    if echo "$command" | grep -qE "(^|[[:space:]/<])(cat|head|tail|less|more|bat|vim|nano|code)[[:space:]].*\.env(\b|\.|$)" 2>/dev/null; then
+        echo "=============================================================================" >&2
+        echo "  BLOCKED: Cannot read .env files" >&2
+        echo "=============================================================================" >&2
+        echo "" >&2
+        echo "Environment files contain secrets." >&2
+        echo "Use process.env.VARIABLE_NAME in code instead." >&2
+        exit 2
+    fi
 fi
 
 # Block reading private keys
