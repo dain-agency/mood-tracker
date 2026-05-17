@@ -152,14 +152,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // failures are swallowed by the client and never block the cron itself.
   const monitoringUrl = process.env.MONITORING_HEARTBEAT_URL;
   const monitoringSecret = process.env.MONITORING_HEARTBEAT_SECRET;
-  if (!monitoringUrl || !monitoringSecret) {
+  const projectRef = process.env.VERCEL_PROJECT_ID;
+  const monitoringConfigured = monitoringUrl && monitoringSecret && projectRef;
+
+  if (!monitoringConfigured) {
     // Monitoring not configured — run unmonitored. Still a valid cron exec.
     try {
       const result = await runDailyCheckin(channelId);
       return res.status(200).json(result);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
-      return res.status(500).json({ message: "Failed to fetch channel members", error: message });
+      return res.status(500).json({ message: "Daily check-in failed", error: message });
     }
   }
 
@@ -169,9 +172,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         endpoint: monitoringUrl,
         secret: monitoringSecret,
         provider: "vercel",
-        // VERCEL_PROJECT_ID is auto-injected by Vercel at runtime. Falling
-        // back to the literal so local runs still target a stable source row.
-        projectRef: process.env.VERCEL_PROJECT_ID ?? "prj_SKzHtTyQvaJk00SiSPxp2A6kLRw5",
+        // VERCEL_PROJECT_ID is auto-injected by Vercel at runtime. Local
+        // runs without it fall back to the unmonitored branch above.
+        projectRef,
         externalId: "/api/cron/daily-checkin",
         externalRunId: randomUUID(),
         displayName: "Daily mood check-in",
@@ -185,6 +188,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json(result);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
-    return res.status(500).json({ message: "Failed to fetch channel members", error: message });
+    return res.status(500).json({ message: "Daily check-in failed", error: message });
   }
 }

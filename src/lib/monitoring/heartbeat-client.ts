@@ -156,6 +156,14 @@ export interface WrapHeartbeatOptions
  * Always returns or throws what `fn` does — heartbeat failures are caught
  * and routed to `onError`. This keeps monitoring opt-in: if the receiver is
  * down, the cron still runs to completion.
+ *
+ * Timing model: the `started` heartbeat fires in the background so the
+ * caller's work is NOT blocked on a slow / hung receiver (worst-case 5s
+ * timeout per beat). Before emitting the terminal beat (`completed` or
+ * `failed`) we await the started promise — this guarantees the receiver
+ * sees `started` before the terminal beat and prevents its `lte` ordering
+ * guard from regressing `last_status` from `success` back to `starting` if
+ * the started request arrived after the completed one.
  */
 export async function wrapWithHeartbeat<T>(
   opts: WrapHeartbeatOptions,
@@ -164,7 +172,7 @@ export async function wrapWithHeartbeat<T>(
   const startedAt = new Date();
   const onError = opts.onError ?? noopOnError;
 
-  await safeBeat(onError, 'started', () =>
+  const startedPromise = safeBeat(onError, 'started', () =>
     sendHeartbeat({
       ...opts,
       status: 'started',
@@ -175,6 +183,7 @@ export async function wrapWithHeartbeat<T>(
   try {
     const result = await fn();
     const finishedAt = new Date();
+    await startedPromise;
     await safeBeat(onError, 'completed', () =>
       sendHeartbeat({
         ...opts,
@@ -188,6 +197,7 @@ export async function wrapWithHeartbeat<T>(
   } catch (err) {
     const finishedAt = new Date();
     const message = err instanceof Error ? err.message : String(err);
+    await startedPromise;
     await safeBeat(onError, 'failed', () =>
       sendHeartbeat({
         ...opts,
