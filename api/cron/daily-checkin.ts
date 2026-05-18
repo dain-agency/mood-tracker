@@ -1,6 +1,8 @@
 import { WebClient } from "@slack/web-api";
 import { KnownBlock } from "@slack/types";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { randomUUID } from "node:crypto";
+import { wrapWithHeartbeat } from "../../src/lib/monitoring/heartbeat-client";
 
 // Mood configuration
 const MOODS = [
@@ -45,57 +47,34 @@ function buildMoodMessage(): KnownBlock[] {
   ];
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Verify cron secret to prevent unauthorized access
-  const authHeader = req.headers.authorization;
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
+interface CheckinResult {
+  message: string;
+  totalChannelMembers?: number;
+  skippedMembers?: { id: string; reason: string }[];
+  results?: { userId: string; success: boolean; error?: string }[];
+}
 
-  // Check for weekend skip (using UK timezone)
-  if (process.env.SKIP_WEEKENDS === "true") {
-    const ukDate = new Date().toLocaleString("en-GB", { timeZone: "Europe/London", weekday: "short" });
-    if (ukDate === "Sat" || ukDate === "Sun") {
-      return res.status(200).json({ message: "Skipped - weekend" });
-    }
-  }
-
+async function runDailyCheckin(channelId: string): Promise<CheckinResult> {
   const client = new WebClient(process.env.SLACK_BOT_TOKEN);
   const blocks = buildMoodMessage();
   const results: { userId: string; success: boolean; error?: string }[] = [];
 
-  const channelId = process.env.MOOD_CHANNEL_ID;
-
-  if (!channelId) {
-    return res.status(200).json({
-      message: "No channel configured. Set MOOD_CHANNEL_ID to specify which channel's members should receive DMs.",
-      results: []
-    });
-  }
-
-  // Fetch all members of the channel (handles pagination)
+  // Fetch all members of the channel (handles pagination).
+  // A failure here means we couldn't even start the work — throw so the
+  // outer wrapWithHeartbeat emits a 'failed' beat with the error message.
   let allMembers: string[] = [];
   let cursor: string | undefined;
-
-  try {
-    do {
-      const response = await client.conversations.members({
-        channel: channelId,
-        cursor,
-        limit: 200,
-      });
-
-      if (response.members) {
-        allMembers = allMembers.concat(response.members);
-      }
-      cursor = response.response_metadata?.next_cursor;
-    } while (cursor);
-  } catch (error: any) {
-    return res.status(500).json({
-      message: "Failed to fetch channel members",
-      error: error.message
+  do {
+    const response = await client.conversations.members({
+      channel: channelId,
+      cursor,
+      limit: 200,
     });
-  }
+    if (response.members) {
+      allMembers = allMembers.concat(response.members);
+    }
+    cursor = response.response_metadata?.next_cursor;
+  } while (cursor);
 
   // Filter out bots by checking user info
   const humanMembers: string[] = [];
@@ -113,8 +92,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       } else {
         humanMembers.push(memberId);
       }
-    } catch (error: any) {
-      skippedMembers.push({ id: memberId, reason: `error: ${error.message}` });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      skippedMembers.push({ id: memberId, reason: `error: ${message}` });
     }
   }
 
@@ -127,15 +107,87 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         text: "How are you feeling today?",
       });
       results.push({ userId, success: true });
-    } catch (error: any) {
-      results.push({ userId, success: false, error: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      results.push({ userId, success: false, error: message });
     }
   }
 
-  return res.status(200).json({
+  return {
     message: `Daily check-in sent to ${results.filter(r => r.success).length}/${humanMembers.length} members`,
     totalChannelMembers: allMembers.length,
     skippedMembers,
-    results
-  });
+    results,
+  };
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Verify cron secret to prevent unauthorized access. No heartbeat — an
+  // unauthorised hit isn't a cron run.
+  const authHeader = req.headers.authorization;
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  // Check for weekend skip (using UK timezone). Same logic: not a real run,
+  // so we don't heartbeat. The Monitoring Hub treats the weekday schedule
+  // as the source of truth.
+  if (process.env.SKIP_WEEKENDS === "true") {
+    const ukDate = new Date().toLocaleString("en-GB", { timeZone: "Europe/London", weekday: "short" });
+    if (ukDate === "Sat" || ukDate === "Sun") {
+      return res.status(200).json({ message: "Skipped - weekend" });
+    }
+  }
+
+  const channelId = process.env.MOOD_CHANNEL_ID;
+  if (!channelId) {
+    return res.status(200).json({
+      message: "No channel configured. Set MOOD_CHANNEL_ID to specify which channel's members should receive DMs.",
+      results: [],
+    });
+  }
+
+  // Heartbeat wrapper. Emits `started` → real work → `completed` (success)
+  // or `failed` (thrown error) to the dain-os Monitoring Hub. Heartbeat
+  // failures are swallowed by the client and never block the cron itself.
+  const monitoringUrl = process.env.MONITORING_HEARTBEAT_URL;
+  const monitoringSecret = process.env.MONITORING_HEARTBEAT_SECRET;
+  const projectRef = process.env.VERCEL_PROJECT_ID;
+  const monitoringConfigured = monitoringUrl && monitoringSecret && projectRef;
+
+  if (!monitoringConfigured) {
+    // Monitoring not configured — run unmonitored. Still a valid cron exec.
+    try {
+      const result = await runDailyCheckin(channelId);
+      return res.status(200).json(result);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      return res.status(500).json({ message: "Daily check-in failed", error: message });
+    }
+  }
+
+  try {
+    const result = await wrapWithHeartbeat(
+      {
+        endpoint: monitoringUrl,
+        secret: monitoringSecret,
+        provider: "vercel",
+        // VERCEL_PROJECT_ID is auto-injected by Vercel at runtime. Local
+        // runs without it fall back to the unmonitored branch above.
+        projectRef,
+        externalId: "/api/cron/daily-checkin",
+        externalRunId: randomUUID(),
+        displayName: "Daily mood check-in",
+        scheduleExpression: "0 9 * * 1-5",
+        onError: (phase, err) => {
+          console.error(`[monitoring] heartbeat ${phase} failed`, err);
+        },
+      },
+      () => runDailyCheckin(channelId),
+    );
+    return res.status(200).json(result);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    return res.status(500).json({ message: "Daily check-in failed", error: message });
+  }
 }
