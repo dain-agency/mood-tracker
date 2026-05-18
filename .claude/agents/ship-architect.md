@@ -58,6 +58,15 @@ Read `$ARGUMENTS` and internalise sections 1-5. Pay special attention to:
 - Anti-goals — what NOT to build
 - Config Updates section — if Discovery proposed new personas/contexts, note them
 
+**Verify infrastructure assumptions before writing §6.** When the brief makes claims about how an existing system works — "the worker checks the repo out", "the service uses prismaWithTenant", "auth is verified via JWT middleware", "the queue runs on Vercel cron", etc. — confirm those claims by reading the actual code BEFORE drafting Technical Strategy. Discovery captures user intent and constraints; it does not validate implementation details, especially for systems the user didn't recently touch.
+
+When a brief claim turns out to be wrong:
+1. Document the actual mechanism in §6 (not the brief's assumed mechanism).
+2. Surface the deviation explicitly at the end of your architect summary so the Phase 4 human gate sees it.
+3. The user will patch §5c (Locked Decisions) at the gate to make the deviation visible to downstream phases. This is a fact correction, not a re-litigation.
+
+This protocol exists because the codebase-awareness build (PR #295) had its brief assume the reviewer worker checked the repo out; the worker is actually a polling service that never does. The architect caught it by reading code; this rule makes that verification step explicit so future architects don't skip it.
+
 ### Step 3: Read INDEX.md Files (Primary Source)
 
 **INDEX.md files are your primary codebase reference.** Each domain has an INDEX.md at both layers:

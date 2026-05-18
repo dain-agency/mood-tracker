@@ -79,6 +79,19 @@ After creating or modifying files, update the domain's `INDEX.md`:
 3. If no: create it using the template at `.claude/templates/domain-index.md` (backend sections only)
 4. Update the "Last updated" timestamp
 
+## Flagging Mock-Test Fallout (new-model rule)
+
+When you add a new Prisma model (any `model X {}` block that doesn't already exist), immediately after writing the schema change:
+
+1. Run from the worktree root:
+   ```bash
+   grep -rn "vi.mock(.*prisma.service" apps/api/src --include="*.test.ts"
+   ```
+2. For every match, the mock's `prisma: { ... }` object is now incomplete — when downstream code starts querying the new model, those tests will throw `TypeError: Cannot read properties of undefined (reading 'findMany' | 'findUnique' | ...)`. The unit tests for the new model will pass (they're new and complete); the breakage is on **pre-existing** integration tests that mocked the whole Prisma client.
+3. Do **not** modify those tests yourself — that's a separate task owned by the next round's ship-test-builder or ship-api-builder. Flag in your Round-completion report so the Foreman dispatches a small follow-up task. A stub `findMany: vi.fn().mockResolvedValue([])` is usually enough; the actual coverage lives in the new model's colocated test.
+
+This rule exists because the codebase-awareness build (PR #295) had 5 integration tests go red post-foreman for exactly this reason — the new `pr_review_suppression_rules` model was missing from `pr-reviewer.service.integration.test.ts`'s vi.mock.
+
 ## What You Do NOT Do
 
 - Write API routes, controllers, or services

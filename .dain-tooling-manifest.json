@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "installed_at": "2026-05-13T11:50:57.748Z",
-  "last_upgrade_at": "2026-05-17T08:46:53.466Z",
-  "library_snapshot_date": "2026-05-17",
+  "last_upgrade_at": "2026-05-18T09:17:07.851Z",
+  "library_snapshot_date": "2026-05-18",
   "tooling_version": "0.2.1",
   "project": {
     "name": "mood-tracker",
@@ -73,8 +73,8 @@
     {
       "slug": "agent-ship-db-builder",
       "target_path": ".claude/agents/ship-db-builder.md",
-      "library_version": 2,
-      "installed_sha": "47d40f97a9a011551edc63f59fdbf50b41274ddbe285611be73681be0e7c625f",
+      "library_version": 3,
+      "installed_sha": "9b2d0a10889ceb05f424296c2c494dc4e61e056124a523d11c7b10c7055be74c",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.729Z"
     },
@@ -240,9 +240,9 @@
     },
     {
       "slug": "cmd-recap",
-      "target_path": ".claude/commands/recap.md",
-      "library_version": 1,
-      "installed_sha": "90bfd5b5b2f98a86d4c8e476e95e75faca6601aeb8c3e88fa586c9bfe369f3c7",
+      "target_path": "~/.claude/commands/recap.md",
+      "library_version": 3,
+      "installed_sha": "4ab25557315ba9a5fb210520672bee8f04ce49147b3ef393db56bfd5d089c114",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.732Z"
     },
@@ -737,8 +737,8 @@
     {
       "slug": "skill-ship-architect",
       "target_path": ".claude/agents/ship-architect.md",
-      "library_version": 2,
-      "installed_sha": "11190a50b0a3979f8afe155ec6cdc812f0b82deed64210188c34128461561e53",
+      "library_version": 3,
+      "installed_sha": "c9fec18975b597e66d2cf2749d8bc2bbbb11bd0d04e3857ace0efca7c9374e9a",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
