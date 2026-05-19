@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "installed_at": "2026-05-13T11:50:57.748Z",
-  "last_upgrade_at": "2026-05-18T09:17:07.851Z",
-  "library_snapshot_date": "2026-05-18",
+  "last_upgrade_at": "2026-05-19T09:15:08.427Z",
+  "library_snapshot_date": "2026-05-19",
   "tooling_version": "0.2.1",
   "project": {
     "name": "mood-tracker",
@@ -241,8 +241,8 @@
     {
       "slug": "cmd-recap",
       "target_path": "~/.claude/commands/recap.md",
-      "library_version": 3,
-      "installed_sha": "4ab25557315ba9a5fb210520672bee8f04ce49147b3ef393db56bfd5d089c114",
+      "library_version": 4,
+      "installed_sha": "652f27b95c6ae4f600e152364d59fd5e4a0cccc77305bbd4cb6a917a025733ab",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.732Z"
     },
@@ -297,8 +297,8 @@
     {
       "slug": "cmd-wrap-up",
       "target_path": ".claude/commands/wrap-up.md",
-      "library_version": 4,
-      "installed_sha": "9225a50c762801db3497d22f8ed3060ff302a937f710093d5388ecb96d344350",
+      "library_version": 7,
+      "installed_sha": "c71bcfc858f60e62603cb6030e7746b8263e7b04c8f79e212bd9ba7e69165aef",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.734Z"
     },
@@ -557,6 +557,14 @@
       "installed_sha": "5c02e2ff047eed51a8b27ed751583a8ede24b6a687c1c597dba58dc252ab7c5f",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
+    },
+    {
+      "slug": "publish-mcp-server",
+      "target_path": ".claude/skills/publish-mcp-server/SKILL.md",
+      "library_version": 2,
+      "installed_sha": "2cfd9a580c47f92aba474ff26e04d02c495b72c2b5cd23dfdb251966be914fd8",
+      "marker": "managed",
+      "installed_at": "2026-05-19T09:15:08.427Z"
     },
     {
       "slug": "register-github-app",
@@ -941,6 +949,14 @@
       "installed_sha": "eacb39a3fd055e69aa801f71d918bdcfaf0c91693c3b607a416c4a5cc3cc8bd9",
       "marker": "managed",
       "installed_at": "2026-05-15T09:09:28.397Z"
+    },
+    {
+      "slug": "user-hook-stop-datetime-bst",
+      "target_path": "~/.claude/settings.json",
+      "library_version": 1,
+      "installed_sha": "5bc9238ee0efdca6c994cbd789f35402c5079dfed6be71de66e322e0fd4208a7",
+      "marker": "managed",
+      "installed_at": "2026-05-19T09:15:08.427Z"
     },
     {
       "slug": "user-skill-e2etest",

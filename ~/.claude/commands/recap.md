@@ -19,7 +19,7 @@ For every read, prefer this order. Skip to the next tier only if the higher tier
 2. **Supabase MCP** (`mcp__claude_ai_Supabase__execute_sql`) with project_id `nkwxprrhkifxoeqwvnpu` — fallback for tables not yet exposed via the DainOS MCP.
 3. **Supabase CLI** (`supabase db ...`) — last resort, e.g. when running offline or against a local stack.
 
-Tables not yet covered by the DainOS MCP (Supabase required): `developer.changelog`, `projects.product_repos`, `projects.tasks` (cross-project summary), `iam.users`.
+The DainOS MCP covers every read this skill needs as of 2026-05-18. Tier 2/3 fallbacks are only relevant when the MCP itself is unavailable.
 
 ---
 
@@ -42,20 +42,17 @@ start_date = today - {window in days}
 
 If `$ARGUMENTS` contained an explicit project slug, use it and skip the rest of this step.
 
-Otherwise, parse `git remote get-url origin` for `<owner>/<repo>` (handle both `git@github.com:owner/repo.git` and `https://github.com/owner/repo` forms), then look up the product:
+Otherwise, parse `git remote get-url origin` for `<owner>/<repo>` (handle both `git@github.com:owner/repo.git` and `https://github.com/owner/repo` forms), then look up the product via the DainOS MCP:
 
-```sql
--- via Supabase MCP / CLI (no MCP tool for this table yet)
-SELECT pr.product_id, pr.tenant_id, p.name AS product_name
-FROM projects.product_repos pr
-JOIN projects.products p ON p.id = pr.product_id
-WHERE pr.github_owner = '<owner>' AND pr.github_repo = '<repo>'
-ORDER BY p.name;
+```
+mcp__dainos__lookup_product_repos({ owner: "<owner>", repo: "<repo>" })
 ```
 
+Returns an array of `{ productId, tenantId, productName, companyId, isPortalVisible }`.
+
 - **Zero rows** — fall back to the repo name as the project slug (e.g. `eoc-herbert`). Note this in the briefing so the user knows the lookup missed.
-- **One row** — set `project_slug = <repo>` (the developer schema uses repo slugs, not product UUIDs), capture `product_id` for the task query in Step 4.
-- **Multiple rows** — capture all `product_id` values, set `project_slug = <repo>`. The repo hosts more than one product; the briefing should mention which.
+- **One row** — set `project_slug = <repo>` (the developer schema uses repo slugs, not product UUIDs), capture `productId` for the task query in Step 4.
+- **Multiple rows** — capture all `productId` values, set `project_slug = <repo>`. The repo hosts more than one product; the briefing should mention which.
 
 ---
 
@@ -87,54 +84,31 @@ If no sessions in the window, note "No session context recorded in this period" 
 
 ## Step 3: Recent commits
 
-No MCP tool exposes `developer.changelog` reads yet, so use Supabase:
-
-```sql
-SELECT commit_sha, branch, commit_type, scope, summary, description,
-       files_changed, insertions, deletions, milestone, task_ref, tags,
-       committed_at, pr_number, pr_url, author
-FROM developer.changelog
-WHERE project = '<project_slug>'
-  AND committed_at >= '<start_date>'::date
-ORDER BY committed_at DESC;
+```
+mcp__dainos__list_changelog({ project: "<project_slug>", since: "<start_date ISO>", limit: 200 })
 ```
 
-If `committed_at` returns nothing, retry filtering on `created_at`. If still empty, note it.
+Returns full changelog rows (camelCase: `commitSha`, `commitType`, `committedAt`, `prNumber`, `prUrl`, etc.) ordered by `committedAt` DESC.
 
-Apply scope keywords across `tags`, `scope`, `summary` if supplied.
+If empty, note it — combined with an empty Step 2 it usually means the changelog ingestor isn't running for this project.
+
+Apply scope keywords client-side across `tags`, `scope`, `summary` if supplied.
 
 ---
 
 ## Step 4: Task status (replaces the old Notion fetch)
 
-If Step 1 resolved one or more `product_id` values, summarise the project's task pipeline. There is no single MCP call that aggregates by status across a product's projects, so use SQL:
+If Step 1 resolved one or more `productId` values, summarise the project's task pipeline. For each productId:
 
-```sql
-SELECT t.status, COUNT(*) AS count
-FROM projects.tasks t
-JOIN projects.projects pj ON pj.id = t.project_id
-WHERE pj.product_id = ANY(ARRAY[<product_ids>]::uuid[])
-GROUP BY t.status
-ORDER BY t.status;
+```
+mcp__dainos__summarise_product_tasks({ productId: "<uuid>" })
 ```
 
-Then a list of currently active and recently completed tasks (cap at 10 each to stay tight):
+Returns `{ statusCounts: { backlog, todo, in_progress, review, production_ready, blocked, done, cancelled }, activeTasks: Array<{ id, taskNumber, title, status, assigneeId, projectName, updatedAt, completedAt }> }`. The active list is server-capped to 20 rows ordered by status then `updatedAt` DESC, and includes any `done` tasks completed within the last 7 days.
 
-```sql
-SELECT t.task_number, t.title, t.status, t.assignee_id, pj.name AS project_name,
-       t.updated_at, t.completed_at
-FROM projects.tasks t
-JOIN projects.projects pj ON pj.id = t.project_id
-WHERE pj.product_id = ANY(ARRAY[<product_ids>]::uuid[])
-  AND (
-    t.status IN ('in_progress', 'review', 'blocked')
-    OR (t.status = 'done' AND t.completed_at >= '<start_date>'::date)
-  )
-ORDER BY t.status, t.updated_at DESC
-LIMIT 20;
-```
+If Step 1 returned multiple productIds, call the tool once per id and merge counts client-side; otherwise it's one call.
 
-If you have a known assignee UUID for the operator (cached from a previous /wrap-up at `~/.dain-os/wrap-up.json`), highlight the operator's in-progress tasks.
+If you have a known assignee UUID for the operator (cached from a previous /wrap-up at `~/.dain-os/wrap-up.json`), highlight the operator's in-progress tasks in the activeTasks list.
 
 If Step 1 returned zero product matches, skip this step entirely — the project isn't registered with DainOS yet.
 

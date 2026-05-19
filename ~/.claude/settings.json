@@ -1,0 +1,38 @@
+## Purpose
+
+Prints a BST/GMT timestamp at the end of every Claude turn so you can tell when Claude finished — handy when you're about to check on something time-bound (a deploy, a queued job).
+
+## Two pieces
+
+1. **`env.TZ = "Europe/London"`** — makes Node-side timestamps render as BST (auto-switches to GMT in winter). System host is UTC; without this everything is an hour off in summer.
+2. **`hooks.Stop`** — shell command that emits a `systemMessage` JSON payload, displayed inline in the chat view when the turn ends.
+
+## Settings.json fragment
+
+```json
+{
+  "env": {
+    "TZ": "Europe/London"
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf '%s' \"$(TZ=Europe/London date '+%a %d %b %Y, %H:%M:%S %Z')\" | jq -R '{systemMessage: (\"Turn ended: \" + .)}'",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+## Notes
+
+- `showMessageTimestamps` / `showTurnDuration` settings exist in the schema but don't appear to render in the default chat view — Stop hook is the reliable per-turn timestamp.
+- TZ is set both in `env` AND inline in the command — the inline `TZ=Europe/London date` belt-and-braces so it works even before a CLI restart picks up `env`.
+- Requires `jq` on PATH (standard on Linux/macOS dev machines).
+- Takes effect on next Claude Code restart.

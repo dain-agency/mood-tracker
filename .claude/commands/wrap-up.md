@@ -5,9 +5,35 @@ argument-hint: [optional: summary override for session context]
 
 # Wrap Up
 
-End-of-session command. Commits all uncommitted work across all worktrees, pushes all branches, links the session to a DainOS product, matches and updates one or more DainOS tasks (with confirmation), and writes session context to DainOS Supabase.
+End-of-session command. Commits all uncommitted work across all worktrees, pushes all branches, links the session to a DainOS product, matches and updates one or more DainOS tasks (with confirmation), and writes session context to DainOS.
 
 **Run this LAST before ending a session.**
+
+---
+
+## Data sources (fallback chain)
+
+For every read and write, prefer this order. Skip to the next tier only if the higher tier is unavailable or doesn't expose the column/operation you need.
+
+1. **DainOS MCP** (`mcp__dainos__*`) — preferred when available. Cross-project, no Supabase token needed, portable across MCP clients.
+2. **Supabase MCP** (`mcp__claude_ai_Supabase__execute_sql`) with project_id `nkwxprrhkifxoeqwvnpu` — fallback for tables and columns the DainOS MCP doesn't yet expose.
+3. **Supabase CLI** (`supabase db ...`) — last resort, e.g. when running offline or against a local stack.
+
+**Where each tier applies in this skill** (as of 2026-05-18, after the MCP extension wave):
+
+| Step | DainOS MCP tool | Notes |
+|------|-----------------|-----|
+| Operator identity | `list_tenant_users({ status: 'active' })` | Returns users in caller's tenant only — no `tenantSlug` arg needed |
+| 3.5. Log commits | `log_changelog_entry({ project, entries: [...] })` | Batch insert (up to 50/call), idempotent on `(project, commit_sha)`. Safe to call even if a CI hook also writes — duplicates are silently skipped |
+| 4b. Product lookup | `lookup_product_repos({ owner, repo })` | Returns `[{ productId, tenantId, productName, companyId, isPortalVisible }]` |
+| 4c. Tenant guard | `get_user({ id })` + `lookup_product_repos` | Compare `user.tenantId` against each product's `tenantId` client-side |
+| 5b. Candidate task query | — | Still uses SQL: the WITH-CTE explicit-refs + recent-open join across all projects under a product has no single-call MCP equivalent. `summarise_product_tasks` returns aggregates, not the full per-task signal-matched list |
+| 5c. Create new task | `create_task` | Server fills `priority_score` default; takes `title, projectId, status, assigneeId, reporterId, startDate` |
+| 6/7. Task UPDATE | `update_task` covers everything | Now exposes `descriptionClient`, `descriptionJson`, `descriptionClientJson`, `actualHoursDelta` (additive), `completedAt`, `completedBy`. Use `complete_task` only for the status state-machine walk. **One MCP call per task — no transactional batch**. If you need all-or-nothing semantics across multiple tasks, drop to SQL with `BEGIN; ... COMMIT;` instead. |
+| 7.5. PR review feedback | `list_unscored_pr_findings({ repo, prNumber, scoredBy })` + `score_pr_finding({ findingId, verdict, scoredBy, notes?, reviewerVersion? })` | Verdict enum: `useful \| noise \| wrong`. 409 on duplicate — don't retry. |
+| 8. session_context INSERT | `log_session_context` covers everything | Now exposes `productId`, `taskIds`, `operatorIamUserId`. |
+
+Supabase MCP / CLI is only needed for Step 5b's cross-product query and for the transactional task-UPDATE batch in Step 7 (when explicit ALL-OR-NOTHING semantics are required across multiple tasks).
 
 ---
 
@@ -15,16 +41,13 @@ End-of-session command. Commits all uncommitted work across all worktrees, pushe
 
 Before Step 1, check `~/.dain-os/wrap-up.json`. If absent OR missing `operator_iam_user_id`:
 
-1. Query agency tenant users (the tenant that owns the dain-os product):
+1. Query users in the caller's tenant via the MCP:
 
-```sql
-SELECT u.id, u.email, u.full_name, u.display_name
-FROM iam.users u
-JOIN core.tenants t ON t.id = u.tenant_id
-WHERE t.slug = 'dain'  -- the agency tenant
-  AND u.status = 'active'
-ORDER BY u.full_name;
 ```
+mcp__dainos__list_tenant_users({ status: "active" })
+```
+
+Returns `[{ id, email, fullName, displayName, status, tenantId }, ...]` ordered by fullName. The endpoint always scopes to the caller's own tenant (no `tenantSlug` param) — so when the operator is signed in as their own user, the result is the agency tenant's roster.
 
 2. If exactly one row is returned, auto-select that row (no prompt). The agency tenant typically has a small fixed roster, so the n=1 case is common and a forced pick is pointless friction. Otherwise use `AskUserQuestion` to let the user pick themselves from the returned list.
 3. Write the config:
@@ -102,9 +125,82 @@ If push is rejected (non-fast-forward):
 
 ---
 
+## Step 3.5: Log Commits to the Developer Changelog
+
+For each branch pushed in Step 3, persist its commits to `developer.changelog`. /recap reads this table in its Step 3, so a skipped log step means recap shows fewer commits than were actually shipped. The MCP call is idempotent on `(project, commit_sha)` so re-runs are safe; this makes it harmless to call even when a CI hook may also be writing to the same table.
+
+### 3.5a. Enumerate commits per worktree
+
+For each (worktree, branch) you pushed, list every commit on the branch since main:
+
+```bash
+cd <worktree_path>
+git log --pretty='format:%H%x09%ci%x09%an%x09%s' origin/main..HEAD
+```
+
+Output is tab-separated: `<full_sha>\t<iso_committed_at>\t<author>\t<subject>`.
+
+If the branch has no clear merge base (e.g. detached HEAD, freshly cloned), fall back to `git log --pretty='...' -50` and trust idempotency to skip duplicates.
+
+### 3.5b. Parse each commit
+
+For each row:
+
+- **`commit_type`**: parse from a conventional-commit subject. `feat(scope): subject` → `feat`. `feat: subject` → `feat`. Unconventional subject → `chore` (defensive default). Valid types: `feat`, `fix`, `chore`, `refactor`, `test`, `docs`, `perf`, `ci`, `build`, `revert`, `style`.
+- **`scope`**: the `(...)` group in the subject, or `null` if absent.
+- **`summary`**: the subject minus the type/scope prefix.
+- **`pr_number`**: parse trailing `(#NNNN)` in the merge-commit subject. If absent, run `gh pr list --search "<sha>" --json number --limit 1` and parse. Omit if still unknown.
+- **`task_ref`**: parse `[A-Z]+-\d+` from the commit body via `git log -1 --format=%B <sha>`. Omit if absent.
+- **`pr_url`**: derive from `pr_number` + the repo: `https://github.com/<owner>/<repo>/pull/<pr_number>`. Omit if `pr_number` is unknown.
+
+### 3.5c. Batch and write
+
+Group entries by **project slug** (= the `github_repo` name from `git remote get-url origin`). Different project slugs need separate MCP calls.
+
+For each project slug, batch entries in chunks of 50 (the tool's max) and call:
+
+```
+mcp__dainos__log_changelog_entry({
+  project: "<project_slug>",
+  entries: [
+    {
+      commit_sha: "<full_40_char_sha>",
+      branch: "<branch>",
+      commit_type: "feat",
+      scope: "api",
+      summary: "add foo to bar",
+      committed_at: "<iso_8601>",
+      author: "Dane",
+      pr_number: 317,
+      pr_url: "https://github.com/dain-agency/dain-os/pull/317",
+      task_ref: "PRD-080"
+    },
+    ...
+  ]
+})
+```
+
+The tool returns `{ inserted, skipped }`. `skipped` counts existing `(project, commit_sha)` rows — that's expected when the CI hook ran first, or when you re-run wrap-up on the same session.
+
+### 3.5d. Report
+
+Add to the Step 9 summary block:
+
+```
+## Changelog
+| Project | Branch | Inserted | Skipped (dupes) |
+|---------|--------|----------|-----------------|
+| dain-os | feat/foo | 7 | 1 |
+| eoc-herbert | fix/bar | 3 | 0 |
+```
+
+(Omit the section if no branches were pushed in Step 3.)
+
+---
+
 ## Step 4: Resolve the DainOS Product
 
-For each worktree, identify the matching product:
+For each worktree, identify the matching product.
 
 ### 4a. Extract repo identity
 
@@ -119,57 +215,49 @@ Parse `github_owner` and `github_repo` from the URL (handles both `git@github.co
 
 A single repo can map to multiple products (e.g. `eoc-herbert` hosts both PEARL and HERBERT; `portunus-pipelines` hosts three pipeline products). Return all matches.
 
-```sql
-SELECT pr.product_id, pr.tenant_id,
-       p.name AS product_name, p.company_id, p.is_portal_visible
-FROM projects.product_repos pr
-JOIN projects.products p ON p.id = pr.product_id
-WHERE pr.github_owner = '<owner>' AND pr.github_repo = '<repo>'
-ORDER BY p.name;
+```
+mcp__dainos__lookup_product_repos({ owner: "<owner>", repo: "<repo>" })
 ```
 
-**If no row returned:**
+Returns `[{ productId, tenantId, productName, companyId, isPortalVisible }, ...]`.
+
+**If empty array:**
 
 Ask via `AskUserQuestion`: "No DainOS product is mapped to this repo (`<owner>/<repo>`). Skip task linking for this worktree, or register the repo?"
 
 Options:
-- "Skip task linking": leave `product_id = NULL` for this worktree's session context, continue to Step 7 (write session_context with no product/task links).
-- "Register repo": list existing products in the agency tenant, let the user pick one (or pick "create new product"), then INSERT into `projects.product_repos` with the chosen `product_id`, `github_owner`, `github_repo`, `github_repo_id` (fetch from the GitHub API), `default_branch`, `is_private`.
+- "Skip task linking": leave `product_id = NULL` for this worktree's session context, continue to Step 8 (write session_context with no product/task links).
+- "Register repo": list existing products in the tenant (no MCP tool for `projects.products` enumeration yet — use SQL `SELECT id, name FROM projects.products WHERE tenant_id = <caller_tenant>`), let the user pick one (or pick "create new product"), then INSERT into `projects.product_repos` with the chosen `product_id`, `github_owner`, `github_repo`, `github_repo_id` (fetch from the GitHub API), `default_branch`, `is_private`.
 
-**If exactly one row returned:** store `product_id`, `tenant_id`, `company_id` and continue.
+**If exactly one row returned:** store `productId`, `tenantId`, `companyId` and continue.
 
-**If multiple rows returned:** present them via `AskUserQuestion` (multiSelect: true) labelled `[product_name]` so the user picks which one(s) the session worked on. Store the picked product ids. Task matching in Step 5 must be scoped to projects under the picked product(s).
+**If multiple rows returned:** present them via `AskUserQuestion` (multiSelect: true) labelled `[productName]` so the user picks which one(s) the session worked on. Store the picked productIds. Task matching in Step 5 must be scoped to projects under the picked product(s).
 
 ### 4c. Tenant consistency guard
 
-Before any write in Step 7 / Step 8, assert that every picked product's `tenant_id` equals the operator's `tenant_id` (fetched in the operator-identity step from `iam.users.tenant_id`). If a mismatch is detected, STOP and surface the conflict to the user via `AskUserQuestion`. This almost always means a misconfigured repo mapping. Do NOT proceed with writes that span tenants.
+Before any write in Step 7 / Step 8, assert that every picked product's `tenantId` equals the operator's `tenantId`. If a mismatch is detected, STOP and surface the conflict to the user via `AskUserQuestion`. This almost always means a misconfigured repo mapping. Do NOT proceed with writes that span tenants.
 
-The check is two independent reads + an in-skill equality assertion. Do NOT use a single CROSS JOIN query: when zero rows match it returns NULL, which a naive assertion treats as "no mismatch found" and silently passes.
+The check is two independent MCP reads + an in-skill equality assertion:
 
-```sql
--- 1) Operator's tenant. Returns exactly one row or zero (BLOCK if zero).
-SELECT tenant_id AS operator_tenant
-FROM iam.users
-WHERE id = '<operator_iam_user_id>'::uuid;
+```
+// 1) Operator's tenant
+const operator = await mcp__dainos__get_user({ id: "<operator_iam_user_id>" });
+// → { id, email, fullName, displayName, status, tenantId } or null
 
--- 2) Distinct tenants across every picked product. Should be exactly one row,
---    matching operator_tenant. BLOCK if zero rows, multiple distinct rows, or
---    a single row that disagrees with operator_tenant.
-SELECT DISTINCT tenant_id AS product_tenant
-FROM projects.product_repos
-WHERE product_id = ANY(ARRAY[<picked_product_ids>]::uuid[]);
+// 2) Tenants across every picked product (4b already returned tenantId per row).
+const productTenants = new Set(pickedProducts.map(p => p.tenantId));
 ```
 
 **Pass criteria (all must hold):**
-- Query 1 returns exactly one row.
-- Query 2 returns exactly one row.
-- The two tenant_id values are equal.
+- `get_user` returns a row (operator exists).
+- `productTenants.size === 1` (exactly one distinct tenant across picked products).
+- `operator.tenantId === [...productTenants][0]` (operator and product share a tenant).
 
 **Block conditions:**
-- Query 1 returns zero rows → operator_iam_user_id is invalid / not in iam.users. Halt; ask user to re-run the operator-identity setup.
-- Query 2 returns zero rows → picked product ids are invalid / not in product_repos. Halt; ask user to re-pick or skip task linking.
-- Query 2 returns multiple rows → picked products span multiple tenants. Halt; ask user to narrow the selection.
-- Single rows that disagree → operator and product belong to different tenants. Halt; this is the misconfigured-repo case the guard exists for.
+- `get_user` returns null → operator_iam_user_id is invalid / cross-tenant. Halt; ask user to re-run the operator-identity setup.
+- `pickedProducts.length === 0` (impossible if 4b returned anything — defensive). Halt.
+- `productTenants.size > 1` → picked products span multiple tenants. Halt; ask user to narrow the selection.
+- Tenant mismatch → operator and product belong to different tenants. Halt; this is the misconfigured-repo case the guard exists for.
 
 ### 4d. Note on `is_portal_visible`
 
@@ -190,6 +278,8 @@ From this session, extract:
 - **Branch name:** the slugified text after the type prefix (`fix/finance-pnl-zero-edit-and-utc-dates` → tokens `finance`, `pnl`, `zero-edit`, `utc-dates`).
 
 ### 5b. Query candidate tasks
+
+The DainOS MCP exposes `list_tasks({ projectId, assigneeId, status })` but only one project at a time, and not joined to `product_id`. For wrap-up we need a single query that spans all projects under the picked product(s), so use SQL:
 
 ```sql
 WITH operator AS (
@@ -229,8 +319,8 @@ WHERE t.id IN (SELECT id FROM explicit_refs)
 - Otherwise show top 5 from `recent_open` sorted by `updated_at DESC`.
 - Use `AskUserQuestion` (multiSelect: true) with each candidate as an option labelled `[task_number] title (project_name, status)`.
 - Allow "None of these" / "Create new task" branches:
-  - "None of these": log session_context with `product_id` set but `task_ids = '{}'`, skip to Step 7.
-  - "Create new task": ask for: title, project (pick from active projects under the product, or NULL), initial status (default `in_progress`). INSERT a new `projects.tasks` row with `tenant_id`, `project_id`, `title`, `status`, `assignee_id = operator_iam_user_id`, `reporter_id = operator_iam_user_id`, `start_date = <conversation_start_date>`. Omit `priority_score` so the column default (50) fires; do NOT pass 0. Add the returned id to the linked set.
+  - "None of these": log session_context with `product_id` set but `task_ids = '{}'`, skip to Step 8.
+  - "Create new task": ask for: title, project (pick from `mcp__dainos__list_projects` results filtered by product, or NULL), initial status (default `in_progress`). Prefer `mcp__dainos__create_task({ title, projectId, status, assigneeId, reporterId, startDate })` for the insert — the MCP fills server-side defaults (e.g. priority_score) correctly. Fall back to SQL INSERT only if the MCP is unavailable. Add the returned id to the linked set.
 
 Store the final array of selected task ids as `linked_task_ids`.
 
@@ -330,6 +420,8 @@ Then use `AskUserQuestion`:
 
 ## Step 7: Write the Task Updates
 
+The DainOS MCP `update_task` exposes `status`, `assigneeId`, `priorityMoscow`, `storyPoints`, `estimatedHours`, `dueDate`, `startDate`, `tags`, `title`, `description`. It does NOT expose `description_client`, `description_json`, `description_client_json`, `actual_hours`, `completed_at`, or `completed_by`. Because the bulk of what wrap-up writes lives in the unexposed columns, **default to SQL for the task UPDATE** so we can wrap everything in one transaction. Use `mcp__dainos__complete_task(id)` only for the status state-machine walk when a task moves to `done`, then follow up with SQL for the rest.
+
 Wrap all task UPDATEs in a single transaction.
 
 ```sql
@@ -395,7 +487,7 @@ If the transaction fails, ROLLBACK and report the error to the user. Do NOT retr
 
 For each PR opened or updated by commits pushed in this session, score any unscored DainOS-reviewer findings so we can tune the reviewer (and validate retiring Greptile by end of month).
 
-This step writes to `developer.pr_review_finding_feedback`.
+This step writes to `developer.pr_review_finding_feedback`. No MCP tool yet — SQL only.
 
 ### 7.5a. Discover PRs touched this session
 
@@ -409,26 +501,19 @@ If a worktree's branch has no PR, skip. Collect the set of `(repo, pr_number)` p
 
 ### 7.5b. Pull unscored findings
 
-For each `(repo, pr_number)`, query findings that have NOT yet been scored by this operator:
+For each `(repo, pr_number)`, query unscored findings via the MCP:
 
-```sql
-SELECT
-    f.id, f.severity, f.category, f.title, f.body, f.suggestion,
-    f.file, f.line, f.resolution_status,
-    r.commit_sha, r.created_at
-FROM developer.pr_review_findings f
-JOIN developer.pr_reviews r ON r.id = f.review_id
-WHERE r.repo = '<owner>/<repo>'
-  AND r.pr_number = <pr_number>
-  AND NOT EXISTS (
-      SELECT 1 FROM developer.pr_review_finding_feedback fb
-      WHERE fb.finding_id = f.id
-        AND fb.scored_by = '<operator_iam_user_id>'::uuid
-  )
-ORDER BY r.created_at DESC, f.severity;
+```
+mcp__dainos__list_unscored_pr_findings({
+  repo: "<owner>/<repo>",
+  prNumber: <pr_number>,
+  scoredBy: "<operator_iam_user_id>"
+})
 ```
 
-If zero rows across all PRs, skip to Step 8 silently. **Do NOT prompt the user.**
+Returns findings the operator hasn't scored yet, with `id`, `severity`, `category`, `title`, `body`, `suggestion`, `file`, `line`, `resolutionStatus`, plus the review's `commitSha` and `createdAt`. Ordered by `createdAt` DESC then severity.
+
+If empty across all PRs, skip to Step 8 silently. **Do NOT prompt the user.**
 
 ### 7.5c. Score findings (batched up to 4 per prompt)
 
@@ -479,26 +564,23 @@ If "Skip the rest" → leave them unscored; they'll surface again on the next wr
 
 ### 7.5d. Write verdicts
 
-Wrap all INSERTs in a single transaction:
+For each finding the operator gave a real verdict to (NOT `Skip`):
 
-```sql
-BEGIN;
-
-INSERT INTO developer.pr_review_finding_feedback
-    (finding_id, scored_by, verdict, notes, reviewer_version, scored_at)
-VALUES
-    ('<finding_id>'::uuid, '<operator_iam_user_id>'::uuid, '<useful|noise|wrong>',
-     <NULL or batch_notes>, <NULL or reviewer_version>, NOW());
-
--- Repeat per scored finding (UNIQUE(finding_id, scored_by) catches accidental re-scores
--- with ON CONFLICT DO NOTHING if needed, but the 7.5b query already filters them out).
-
-COMMIT;
+```
+mcp__dainos__score_pr_finding({
+  findingId: "<uuid>",
+  verdict: "<useful|noise|wrong>",
+  scoredBy: "<operator_iam_user_id>",
+  notes: <batch_notes or omitted>,
+  reviewerVersion: <reviewerVersion or omitted>
+})
 ```
 
-If a finding was marked `Skip`, do NOT insert a row — leaving it null in the DB means "not yet scored" and it'll resurface on the next session.
+One MCP call per scored finding. The API enforces `UNIQUE(finding_id, scored_by)` and returns **409** with the existing row if the operator already scored this finding (shouldn't happen since 7.5b filtered them out, but treat 409 as a no-op rather than an error).
 
-`reviewer_version` is currently NULL until the DainOS reviewer starts publishing a version tag in its review comment. When that ships, parse it from the comment body and pass it through.
+If a finding was marked `Skip`, do NOT call `score_pr_finding` — leaving it null means "not yet scored" and it'll resurface on the next session.
+
+`reviewerVersion` is currently omitted until the DainOS reviewer starts publishing a version tag in its review comment. When that ships, parse it from the comment body and pass it through.
 
 ### 7.5e. Report
 
@@ -516,7 +598,7 @@ Add to the Step 9 summary block:
 
 ## Step 8: Write Session Context
 
-INSERT one row into `developer.session_context`. Reuse all existing columns plus the new ones.
+INSERT one row into `developer.session_context` via the MCP. As of #319 the tool covers the relational fields (`productId`, `taskIds`, `operatorIamUserId`) alongside the core columns.
 
 Resolve `<machine hostname>` by running `hostname` in the shell first:
 
@@ -558,32 +640,28 @@ Then `AskUserQuestion`:
 
 If "Cancel session_context write" is chosen, the task writes from Step 7 are NOT rolled back; only the session_context row is skipped. Tell the user explicitly that the session is now untracked but the task updates already landed.
 
-```sql
-INSERT INTO developer.session_context (
-  project, session_name, session_date, operator, machine, duration_minutes,
-  summary, decisions_made, handoff_notes, files_touched, tasks_completed, blockers, tags,
-  product_id, task_ids, operator_iam_user_id
-) VALUES (
-  '<project_slug>',                       -- free-text repo/product slug (existing convention)
-  '<descriptive session name>',
-  '<today YYYY-MM-DD>',
-  '<model name e.g. claude-opus-4.7>',
-  '<resolved hostname from `hostname` shell call>',
-  <estimated minutes>,
-  $session_summary$<summary>$session_summary$,
-  '<decisions JSON array>'::jsonb,
-  '<handoff notes JSON object>'::jsonb,
-  ARRAY[<files>],
-  ARRAY[<task_titles_completed_text>],
-  ARRAY[<blockers>],
-  ARRAY[<tags>],
-  '<product_id_or_NULL>'::uuid,
-  ARRAY[<linked_task_ids>]::uuid[],
-  '<operator_iam_user_id>'::uuid
-);
+```
+mcp__dainos__log_session_context({
+  project: "<project_slug>",
+  sessionName: "<descriptive session name>",
+  sessionDate: "<YYYY-MM-DD>",
+  operator: "<model name e.g. claude-opus-4.7>",
+  machine: "<resolved hostname from `hostname` shell call>",
+  durationMinutes: <estimated minutes>,
+  summary: "<summary>",
+  decisionsMade: [<{ decision, reason }>...],
+  handoffNotes: "<handoff narrative>",
+  filesTouched: [<files>],
+  tasksCompleted: [<task_titles_completed_text>],
+  blockers: [<blockers>],
+  tags: [<tags>],
+  productId: "<product_id_or_null>",
+  taskIds: ["<linked_task_id>", ...],
+  operatorIamUserId: "<operator_iam_user_id>"
+})
 ```
 
-If `product_id` was not resolved (Step 4 returned no row and user chose "Skip"), pass `NULL`.
+If `productId` was not resolved (Step 4 returned no row and user chose "Skip"), omit it (or pass `null`). Same for `taskIds` (omit or pass `[]`) — the API treats both as "not linked".
 
 ---
 
@@ -640,3 +718,4 @@ Written to DainOS. Session: "<session_name>" (id: <uuid>)
 12. If `~/.dain-os/wrap-up.json` is missing on a fresh machine, the operator-identity setup runs once before any wrap-up writes.
 13. **PR review feedback (Step 7.5) never prompts when there are zero unscored findings.** Don't add friction to wrap-ups that didn't touch a reviewed PR.
 14. **Skip = don't write a row.** A `pr_review_finding_feedback` row with a real verdict is a commitment. If the operator picks `Skip`, leave the finding unscored so it resurfaces next session.
+15. **DainOS MCP is the default path.** The fallback table at the top of this skill lists only two exceptions where Supabase is still required: Step 5b's cross-product candidate task query, and Step 7's transactional all-or-nothing task UPDATE batch. Everywhere else, use the MCP — no Supabase token needed.
