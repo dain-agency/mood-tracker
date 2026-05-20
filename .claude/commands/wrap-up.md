@@ -596,6 +596,71 @@ Add to the Step 9 summary block:
 
 ---
 
+## Step 7.6: Capture KB-Worthy Learnings
+
+Before writing `session_context`, surface any KB-worthy learnings from this session and log them to `developer.dev_knowledge_base` via `mcp__dainos__log_knowledge_base_entry`. The KB is the team's accumulated memory of gotchas, patterns, decisions, and lessons — far more useful than any individual session_context row, because it's what future sessions read when grepping for "have I hit this before". `session_context` is per-session narrative; the KB is the permanent record.
+
+This step is mandatory. If nothing felt KB-worthy, say so explicitly in the Step 9 report rather than silently skipping.
+
+### 7.6a. Identify candidates
+
+Skim the session for items matching the KB filter — "SURPRISING, NON-OBVIOUS, or caused real problems":
+
+- **gotcha** — an API/library/tool/config behaved unexpectedly and burned debug time
+- **pattern** — a reusable technique was invented or applied (e.g. "diagnostic-of-last-resort via ORM middleware", "Retry-After-aware backoff helper", "bucket-by-gap analysis for intermittent bugs")
+- **lesson** — a debugging heuristic or analysis technique that worked
+- **decision** — a non-obvious architectural call that future readers should know about, including the WHY
+- **workaround** — a temporary fix that bypasses an upstream bug rather than solving it, plus the condition under which the workaround can be removed
+
+Skip:
+- One-off bug fixes with no general lesson
+- Anything already captured in `CLAUDE.md`, `.claude/rules/*`, domain `INDEX.md` files, or existing KB entries
+- Trivial / obvious-in-hindsight observations
+
+### 7.6b. Dedupe
+
+For each candidate, run `mcp__dainos__search_knowledge_base` with a short query matching the title's key noun and the module:
+
+```
+mcp__dainos__search_knowledge_base({ project: "dain-os", q: "<noun>", module: "<area>", limit: 5 })
+```
+
+If an entry already exists and the new occurrence reinforces it, call `mcp__dainos__update_knowledge_base_entry` to append a new source_ref / refine prevention. If the existing entry is materially different, log a new one — KB cross-references are cheap, near-misses are expensive.
+
+### 7.6c. Log
+
+Batch new entries (1-50 per call) into `mcp__dainos__log_knowledge_base_entry`. Required fields per entry:
+
+| Field | What to write |
+|---|---|
+| `category` | `gotcha` \| `pattern` \| `lesson` \| `decision` \| `workaround` |
+| `module` | System area, e.g. `auth`, `pr-review`, `prisma`, `deployment` |
+| `title` | Short, descriptive, would match a future grep |
+| `description` | What happened / what is this. Include the WHY when it's non-obvious. |
+| `impact` | Cost in real terms (debug hours, prod incidents, missed deadlines) — concrete numbers if you have them |
+| `prevention` | Specific steps to avoid it next time. Code snippets, commands, or rules — not platitudes. |
+| `severity` | `critical` \| `high` \| `medium` \| `low` |
+| `source_type` | `fix_commit` \| `pr_comment` \| `pr_review` \| `code_review` \| `ai_conversation` \| `incident` \| `documentation` \| `debugging_session` |
+| `source_refs` | Array of PR URLs, file paths, commit SHAs — anything a future reader can click |
+| `tags` | Searchable keywords (lowercase, hyphenated multi-word) |
+
+Use project `"universal"` instead of `"dain-os"` only when the lesson is genuinely cross-product (e.g. a Node/OpenSSL quirk, a Supabase platform behaviour). Most lessons are project-specific.
+
+### 7.6d. Report
+
+Add to the Step 9 summary block:
+
+```
+## Knowledge Base
+| Entries logged | Categories                |
+|----------------|---------------------------|
+| 3              | 2 gotchas, 1 pattern      |
+```
+
+If zero entries felt worth logging, write `| 0 | nothing KB-worthy this session |` — explicit rather than silent.
+
+---
+
 ## Step 8: Write Session Context
 
 INSERT one row into `developer.session_context` via the MCP. As of #319 the tool covers the relational fields (`productId`, `taskIds`, `operatorIamUserId`) alongside the core columns.
