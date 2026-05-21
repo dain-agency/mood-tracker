@@ -28,7 +28,9 @@ For every read and write, prefer this order. Skip to the next tier only if the h
 | 4b. Product lookup | `lookup_product_repos({ owner, repo })` | Returns `[{ productId, tenantId, productName, companyId, isPortalVisible }]` |
 | 4c. Tenant guard | `get_user({ id })` + `lookup_product_repos` | Compare `user.tenantId` against each product's `tenantId` client-side |
 | 5b. Candidate task query | — | Still uses SQL: the WITH-CTE explicit-refs + recent-open join across all projects under a product has no single-call MCP equivalent. `summarise_product_tasks` returns aggregates, not the full per-task signal-matched list |
-| 5c. Create new task | `create_task` | Server fills `priority_score` default; takes `title, projectId, status, assigneeId, reporterId, startDate` |
+| 5c. Milestone resolution | `list_milestones({ projectId })` | Call before `create_task` whenever `projectId` is set. Orphan tasks (project with milestones but no `milestoneId`) clutter the project view. |
+| 5c. Create milestone | — | No MCP tool yet. Fall back to SQL `INSERT INTO projects.milestones` (see step body) and reuse the returned id on `create_task`. |
+| 5c. Create new task | `create_task` | Server fills `priority_score` default; takes `title, projectId, milestoneId, status, assigneeId, reporterId, startDate`. ALWAYS pass `milestoneId` when the project has milestones — see Step 5c.iii. |
 | 6/7. Task UPDATE | `update_task` covers everything | Now exposes `descriptionClient`, `descriptionJson`, `descriptionClientJson`, `actualHoursDelta` (additive), `completedAt`, `completedBy`. Use `complete_task` only for the status state-machine walk. **One MCP call per task — no transactional batch**. If you need all-or-nothing semantics across multiple tasks, drop to SQL with `BEGIN; ... COMMIT;` instead. |
 | 7.5. PR review feedback | `list_unscored_pr_findings({ repo, prNumber, scoredBy })` + `score_pr_finding({ findingId, verdict, scoredBy, notes?, reviewerVersion? })` | Verdict enum: `useful \| noise \| wrong`. 409 on duplicate — don't retry. |
 | 8. session_context INSERT | `log_session_context` covers everything | Now exposes `productId`, `taskIds`, `operatorIamUserId`. |
@@ -320,9 +322,56 @@ WHERE t.id IN (SELECT id FROM explicit_refs)
 - Use `AskUserQuestion` (multiSelect: true) with each candidate as an option labelled `[task_number] title (project_name, status)`.
 - Allow "None of these" / "Create new task" branches:
   - "None of these": log session_context with `product_id` set but `task_ids = '{}'`, skip to Step 8.
-  - "Create new task": ask for: title, project (pick from `mcp__dainos__list_projects` results filtered by product, or NULL), initial status (default `in_progress`). Prefer `mcp__dainos__create_task({ title, projectId, status, assigneeId, reporterId, startDate })` for the insert — the MCP fills server-side defaults (e.g. priority_score) correctly. Fall back to SQL INSERT only if the MCP is unavailable. Add the returned id to the linked set.
+  - "Create new task": follow Step 5c.i → 5c.iii → 5c.iv below. Add the returned task id to the linked set.
 
 Store the final array of selected task ids as `linked_task_ids`.
+
+#### 5c.i. Collect task basics
+
+Ask the operator for:
+- **title** — required.
+- **project** — pick from `mcp__dainos__list_projects` results filtered by the picked product, or `NULL` for an unscoped task.
+- **initial status** — default `in_progress`.
+
+If `project` is `NULL`, skip 5c.ii–5c.iii and go straight to 5c.iv with no `milestoneId`.
+
+#### 5c.ii. List milestones on the chosen project
+
+Call `mcp__dainos__list_milestones({ projectId })`. Three branches:
+
+1. **Project has no milestones** → no decision to make. Go to 5c.iv with no `milestoneId`. Do not invent a milestone the operator hasn't asked for.
+2. **Project has milestones** → go to 5c.iii.
+3. **MCP error** → fall back to SQL:
+   ```sql
+   SELECT id, name, status, start_date, due_date
+     FROM projects.milestones
+    WHERE project_id = '<projectId>'
+    ORDER BY sort_order, due_date NULLS LAST;
+   ```
+
+#### 5c.iii. Decide milestone (mandatory three-way prompt when 5c.ii returned ≥1 milestone)
+
+Use `AskUserQuestion` (single-select) with the prompt: **"Attach this task to a milestone?"** and the following options (in this order):
+
+- One option per existing milestone, labelled `<name> (<status>, due <due_date or "no date">)`. Selecting one carries its `id` forward as `milestoneId`.
+- **"Create new milestone"** → go to 5c.iii.a.
+- **"Leave unassigned"** → carry forward with no `milestoneId`. Acceptable but should be the exception, not the default. The MCP description explicitly flags orphan tasks under a milestoned project as a code smell, so prefer attaching wherever it fits.
+
+##### 5c.iii.a. Create a new milestone
+
+There is no `create_milestone` MCP tool yet, so use the Supabase MCP for a direct INSERT. Ask the operator for `name` (required), `start_date` (optional, ISO), `due_date` (optional, ISO). Then run:
+
+```sql
+INSERT INTO projects.milestones (project_id, name, start_date, due_date, status)
+VALUES ('<projectId>', '<name>', <start_date_or_NULL>, <due_date_or_NULL>, 'pending')
+RETURNING id;
+```
+
+Carry the returned `id` forward as `milestoneId`. Do **not** set `is_billable` or `billable_amount` from wrap-up — those belong to a deliberate financial decision, not a session-recap side effect.
+
+#### 5c.iv. Insert the task
+
+Prefer `mcp__dainos__create_task({ title, projectId, milestoneId, status, assigneeId, reporterId, startDate })` — pass `milestoneId` whenever 5c.iii produced one, omit otherwise. The MCP fills server-side defaults (e.g. `priority_score`) correctly. Fall back to SQL `INSERT INTO projects.tasks` only if the MCP is unavailable; include `project_milestone_id` in the column list if you have a milestone id.
 
 ---
 
