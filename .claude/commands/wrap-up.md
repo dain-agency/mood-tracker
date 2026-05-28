@@ -11,6 +11,35 @@ End-of-session command. Commits all uncommitted work across all worktrees, pushe
 
 ---
 
+## Auto Mode
+
+**If `$ARGUMENTS` contains `auto`:** run the entire wrap-up without interactive prompts. Every `AskUserQuestion` call is replaced by the auto-default listed below. Use this for background agents, scheduled wrap-ups, or when the operator has pre-approved the session's scope.
+
+**Auto-mode defaults by step:**
+
+| Step | Interactive behaviour | Auto-mode default |
+|------|----------------------|-------------------|
+| Operator identity | AskUserQuestion to pick from tenant roster | Auto-select if exactly one user; FAIL if multiple (cannot guess) |
+| 2d. Pre-commit hook failure | Ask: fix, --no-verify, or skip | Attempt trivial fix (unused imports, formatting). If fix fails, commit with `--no-verify` and log a warning. |
+| 4b. Multiple products | AskUserQuestion multiSelect | Select ALL matched products (session likely touched all) |
+| 4b. No product mapped | Ask: skip or register | Skip task linking, log warning |
+| 5c. Task matching | AskUserQuestion multiSelect from candidates | Auto-select tasks matched by explicit commit refs in subjects. If no explicit refs, select the single most-recently-updated task assigned to the operator. If zero candidates, skip task linking. |
+| 5c. Create new task | Interactive title/project/milestone flow | Never auto-create. Skip to Step 8 with no task link. |
+| 6c. Human gate review | Per-task AskUserQuestion with full field block | Apply all proposals as-is. Log the full proposed block to the session summary so the operator can audit post-hoc. |
+| 7.5c. PR review scoring | AskUserQuestion per finding batch | Skip entirely. Findings remain unscored for the next interactive session. |
+| 7.6. KB learnings | Identify and log candidates | Still runs. KB entries are non-destructive and do not need confirmation. |
+| 8a. Session context | AskUserQuestion to confirm | Write without confirmation. |
+
+**Safety rails in auto mode:**
+- Tenant consistency guard (Step 4c) still runs and will FAIL on mismatch. No auto-bypass.
+- Transaction rollback on SQL error (Step 7) still halts. No auto-retry.
+- `--no-verify` usage is logged as a warning in the Step 9 report so the operator knows hooks were skipped.
+- If operator identity cannot be auto-resolved (multiple users in tenant), the entire wrap-up FAILS rather than guessing.
+
+**To invoke:** `/wrap-up auto` or `/wrap-up auto <summary override>`
+
+---
+
 ## Data sources (fallback chain)
 
 For every read and write, prefer this order. Skip to the next tier only if the higher tier is unavailable or doesn't expose the column/operation you need.

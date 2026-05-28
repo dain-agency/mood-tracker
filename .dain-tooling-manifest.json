@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "installed_at": "2026-05-13T11:50:57.748Z",
-  "last_upgrade_at": "2026-05-27T09:14:07.994Z",
-  "library_snapshot_date": "2026-05-27",
+  "last_upgrade_at": "2026-05-28T09:20:56.584Z",
+  "library_snapshot_date": "2026-05-28",
   "tooling_version": "0.2.1",
   "project": {
     "name": "mood-tracker",
@@ -177,8 +177,8 @@
     {
       "slug": "cmd-e2e",
       "target_path": ".claude/commands/e2e.md",
-      "library_version": 1,
-      "installed_sha": "1a9c76a3d2993609debfe0216a7b7b9513c7e4fecde76b3c02143b57441fc070",
+      "library_version": 3,
+      "installed_sha": "bceb29268dcbfc56b13c5cee7d400e9c373896fb21fb374190e7e246f5d392cb",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
@@ -297,8 +297,8 @@
     {
       "slug": "cmd-wrap-up",
       "target_path": ".claude/commands/wrap-up.md",
-      "library_version": 9,
-      "installed_sha": "433914b3a7b7f8edd1c76b246eff21f2697345a16e330ca3570a9f87f111897e",
+      "library_version": 10,
+      "installed_sha": "0645275dea897ba202e17dc07382c0c0cfa7adbe6259dfa5a1e17d3d93aa8855",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.734Z"
     },
@@ -561,8 +561,8 @@
     {
       "slug": "publish-mcp-server",
       "target_path": ".claude/skills/publish-mcp-server/SKILL.md",
-      "library_version": 2,
-      "installed_sha": "2cfd9a580c47f92aba474ff26e04d02c495b72c2b5cd23dfdb251966be914fd8",
+      "library_version": 3,
+      "installed_sha": "c624d09d22d89e8b376215f8a7870189f786531e1e97d95efaaa38687d9af801",
       "marker": "managed",
       "installed_at": "2026-05-19T09:15:08.427Z"
     },
