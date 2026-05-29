@@ -1,3 +1,4 @@
+
 ---
 description: Discovery Agent — extract WHO/WHY/WHERE/WHEN context through structured questioning
 argument-hint: <feature description>
@@ -109,6 +110,33 @@ Round 2+ (plain text or AskUserQuestion depending on answers):
 - "What's their relationship to the data?" — options: Owns it / Views it / Acts on it / All of the above
 
 **Keep asking until you can write:** "Margaret, care home manager, 20 years in the sector. Uses iPad confidently for email. Finds most 'systems' frustrating. Wants her team spending time with residents, not doing admin."
+
+### Step 1b: Practice-vs-feature sanity check (MANDATORY)
+
+Before moving past WHY, surface whether the feature presumes a working practice the team doesn't actually have. The feature description usually contains a noun that names the practice — "sprint planning" presumes sprints, "annual review" presumes annual reviews, "shift handover" presumes shifts. If you build the UX around a noun that isn't load-bearing in the user's real workflow, the feature will look correct in review but never get opened on a Monday.
+
+Ask exactly one `AskUserQuestion` here. Frame it with the noun in the user's words, not yours:
+
+```
+question: "The feature is built around {noun} (e.g. \"sprints\", \"weekly check-ins\", \"OKRs\"). Is that how work actually flows for the team today?"
+header: "Practice fit"
+options:
+  - label: "Yes, we already work this way"
+    description: "{noun} is part of the existing rhythm; the feature gives it better tooling"
+  - label: "No, but we want to start"
+    description: "The feature is part of introducing the practice; cultural change is part of the scope"
+  - label: "No, and we're not planning to"
+    description: "Work happens differently; reframe the feature around the real flow before continuing"
+```
+
+How to use the answer:
+
+- **"Yes" or "starting"**: continue Discovery as written. Note the practice maturity in §1 / §2 of the brief so the architect can pitch the UX appropriately.
+- **"No, and we're not planning to"**: STOP. Do not write a brief that builds a UX around the absent practice. Tell the user: "the feature as described presumes a workflow that doesn't exist — let's either redesign around how work actually flows, or treat this as a practice-introduction project (and add the change-management work to scope)." Wait for their direction before continuing.
+
+This is a one-question gate. It costs one turn. It catches the class of mismatch that the rest of the pipeline cannot — every reviewer, agent, and CI check downstream presumes the brief's premise is correct.
+
+**Canonical failure:** the Sprint+Cadence build (PR #380) shipped a sprint-planning and sprint-history UX after the user explicitly said *"sprints aren't planned, work just happens"* mid-build. The build was technically correct but landed a product that won't be opened on Monday morning. A Step 1b question at Discovery time would have surfaced the gap before the architect spent budget on §6-7.
 
 ### Step 2: WHY — The Motivation
 
@@ -397,6 +425,36 @@ If Discovery found gaps during questioning:
 - **Updated persona descriptions** → note the changes
 
 Include a `## Config Updates` section in the Feature Brief listing proposed additions/changes to the project config. The Architect or Retrospective will apply these.
+
+---
+
+## Icon names: propose intent, never lock the export
+
+When iconography is part of the feature (chips, status indicators, navigation icons, action buttons), Discovery **proposes the intent** but does NOT lock the exact icon export name. The Architect verifies and locks during Implementation Spec, against the actual installed icon library.
+
+**Why:** AI agents (yes, you) cheerfully invent plausible-looking but non-existent icon names. PRD-089 Discovery proposed `Sparkles01Icon`, `BugIcon`, `Tools01Icon`, `SearchSquare01Icon` from `@hugeicons/core-free-icons` — four of the six proposed names do not exist in the installed package. The Architect had to verify each one manually, costing wall-clock time and risking a builder failure if it had landed in the brief unchallenged.
+
+### Do
+
+```markdown
+Iconography (intent only — Architect locks exact exports):
+- `feat` — a "sparkles" or "new feature" mark (blue tone)
+- `fix` — a "bug" mark (red tone)
+- `chore` — a "settings/tooling" mark (slate tone)
+```
+
+### Don't
+
+```markdown
+Iconography (Architect — confirm):
+- `feat` — Sparkles01Icon (blue tone)
+- `fix` — BugIcon (red tone)
+- `chore` — Tools01Icon (slate tone)
+```
+
+The second form looks more useful but commits Discovery to specific export names you didn't verify. The Architect then has to spend time fact-checking. The first form is honest: "this is the role; you pick the export."
+
+If the user explicitly types an icon name during questioning, repeat it back as intent ("you'd like a sparkles-style icon for feat — got it") rather than echoing it as a locked export.
 
 ---
 
