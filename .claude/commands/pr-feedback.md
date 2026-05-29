@@ -167,6 +167,12 @@ Assess the **scope of changes** made in Step 3:
 
 **Safety limit:** Maximum 3 review cycles to avoid infinite loops.
 
+**Bot-loop close-out (MANDATORY after cycle 2):** Some reviewer bots (e.g. dainos-reviewer, certain Greptile configurations) do NOT track resolution state across commits — they re-flag previously-fixed findings on every new push. After cycle 2, if a new cycle returns no NEW findings (only re-flags of already-addressed ones), post a single meta-comment closing further auto-cycles and stop triggering `@dainreview`/equivalent. Example body:
+
+> Per the cmd-pr-feedback Phase 10 rule (max 3 cycles), this PR is now closing further automated re-review cycles. N genuinely new findings across the N cycles addressed in commits A, B, C. The bot does not track resolution across commits, so subsequent re-flags of fixed findings are expected — verified the fixes are in place; clarification replies posted on the false-positive threads. Ready for human review.
+
+The PR proceeds to Step 5 with the open false-positive threads documented in the progress file. Do not keep triggering re-reviews in pursuit of a "zero comments" state the bot will never produce.
+
 ### Resolve addressed threads
 
 After confirming no further Greptile feedback, resolve all Greptile review threads on the PR using GitHub GraphQL API.

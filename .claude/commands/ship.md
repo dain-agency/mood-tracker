@@ -1,3 +1,4 @@
+
 ---
 description: Ship a feature end-to-end — discover, design, plan, build, review, merge
 argument-hint: <feature description or path to existing feature brief / progress file>
@@ -205,6 +206,21 @@ kill $SMOKE_PID 2>/dev/null
 
 Both must report `OK`. Either `FAIL` → surface the log, stop the pipeline.
 
+### Check 5: Main repo working tree has no uncommitted source-code changes
+
+Before creating the worktree, the main repo's working tree must be clean of source-code edits. Docs/plans/progress files are fine; `apps/**`, `packages/**`, `src/**` modifications are not — they will collide with the worktree branch at merge time.
+
+```bash
+# Reports any uncommitted modifications under source dirs (excludes docs, plans, configs).
+git status --porcelain | grep -E '^.M (apps|packages|src)/' && echo "BLOCK: uncommitted source-code changes in main repo"
+```
+
+If non-empty, STOP and surface the file list to the user. Two clean paths:
+- **(a) Commit-and-merge first.** Create a separate branch for those changes, PR + merge it, then resume `/ship`. Updated `main` will be the new base for the worktree.
+- **(b) Stash and continue at risk.** Stash the changes; accept that the worktree branch may have a merge conflict on those same files when it lands. Only choose this when the orphaned changes are unrelated to the feature being shipped.
+
+**Why this check exists:** PRD-089 ran a full `/ship` to PR before discovering at Phase 7 (Pre-Flight) that the main repo had 5 uncommitted source files from an earlier conversation. Resolving the collision cost ~1 hour (separate PR, review, merge, rebase, conflict resolution). Catching it at Check 5 turns that into a 2-minute conversation at the start.
+
 ### Output
 
 Record in the Phase Telemetry table:
@@ -352,6 +368,19 @@ The E2E Agent:
 6. Reports pass/fail with persistence checks and UX constraint verification
 
 **Output:** E2E Test Report (pass/fail per journey, persistence results, failure classification).
+
+### Chrome MCP availability constraint (read before dispatching)
+
+The `mcp__claude-in-chrome__*` toolset is **available only in the main conversation thread**, not in `Agent`-dispatched subagents. The MCP server connection is bound to the parent CLI process.
+
+This means a vanilla `Agent(ship-e2e)` dispatch will return "Chrome unavailable" or "Cannot attach to this target". Two paths to address it:
+
+- **(a) Inline-after-plan.** Dispatch `ship-e2e` to PLAN the journey-to-action mapping and return it (no browser execution). The main-thread orchestrator then executes the plan inline using Chrome MCP. This is the recommended path for builds where browser verification is genuinely needed.
+- **(b) Code-only equivalent.** When inline execution isn't practical (cost cap, time pressure, cert-acceptance gate not crossed), document a code-only E2E equivalent: grep that the touched code wires correctly to the user-journey surfaces, note the deferred visual verification, and surface it to Phase 9 Human Review. The same applies to `ship-ui-auditor` after UI build rounds.
+
+In both paths, the progress file's Phase 8 telemetry row must explicitly state which path was taken. Silent skips are not acceptable.
+
+**Why this constraint exists:** PRD-089 Phase 8 dispatched no agent (cost cap) and attempted inline Chrome automation. The dev-server URL served a self-signed-cert interstitial that Chrome automation cannot interact with ("Cannot attach to this target"). Documenting the constraint here lets the next /ship anticipate the same dead-end and either accept the cert pre-flight (see `portless-dev` skill) or commit to (b) from the start.
 
 ### On Boot Failure (dev servers won't start, auth fails, env mismatch)
 

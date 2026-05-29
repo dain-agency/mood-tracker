@@ -54,6 +54,13 @@ Sizes:
 | `ship-api-builder` | Zod schemas, services, controllers, route factories |
 | `ship-ui-builder` | React components, hooks, pages, API client |
 | `ship-test-builder` | Unit tests for services, hooks, components |
+| `custom-fabric` | Microsoft Fabric notebook files (`*.Notebook/notebook-content.py`), pipeline JSON, helper Python modules. **No agent exists for this** — these tasks are executed directly by the main-thread orchestrator (Claude in the /ship driver session), not dispatched via `ship-foreman`. The plan must include a `notes` field on every `custom-fabric` task saying so. |
+
+**Custom-fabric tasks (MANDATORY when the project has a Fabric pipeline):** Read the project config's tech stack — if it mentions Microsoft Fabric, Synapse notebooks, Spark, or Delta Lake, the project has a Fabric pipeline. Tasks that touch `*.Notebook/` directories, pipeline-content.json, Spark UDFs, or pure-Python helper modules consumed by Fabric notebooks MUST be tagged `agent: "custom-fabric"`. Each such task gets a `notes` field reading:
+
+> "Manual build via the main-thread orchestrator. No `ship-foreman` dispatch — the Foreman should treat these tasks as instructions to itself (or to the /ship driver) rather than dispatching to a non-existent fabric builder. Subsequent /ship Build phase will invoke Claude directly on these tasks."
+
+Canonical failure: PRD-026 F2's task manifest correctly identified 10 Fabric tasks but did NOT flag them as out-of-foreman scope. The Foreman attempted to dispatch a `ship-fabric-builder` agent that does not exist; the orchestrator had to hand-route every Fabric task to the main thread. 30 seconds of project-config inspection at plan-writer time would have produced an unambiguous manifest.
 
 ### Step 5: Specify Task Details
 

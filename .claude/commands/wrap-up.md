@@ -59,7 +59,7 @@ For every read and write, prefer this order. Skip to the next tier only if the h
 | 5b. Candidate task query | — | Still uses SQL: the WITH-CTE explicit-refs + recent-open join across all projects under a product has no single-call MCP equivalent. `summarise_product_tasks` returns aggregates, not the full per-task signal-matched list |
 | 5c. Milestone resolution | `list_milestones({ projectId })` | Call before `create_task` whenever `projectId` is set. Orphan tasks (project with milestones but no `milestoneId`) clutter the project view. |
 | 5c. Create milestone | — | No MCP tool yet. Fall back to SQL `INSERT INTO projects.milestones` (see step body) and reuse the returned id on `create_task`. |
-| 5c. Create new task | `create_task` | Server fills `priority_score` default; takes `title, projectId, milestoneId, status, assigneeId, reporterId, startDate`. ALWAYS pass `milestoneId` when the project has milestones — see Step 5c.iii. |
+| 5c. Create new task | `create_task` | Server fills `priority_score` default; takes `title, projectId, milestoneId, status, assigneeId, reporterId, startDate`. ALWAYS pass `milestoneId` when the project has milestones — see Step 5c.iii. **Does NOT yet expose `taskType`** — follow the `create_task` MCP call with a one-row SQL UPDATE to set `task_type` (see Step 5c.iv). |
 | 6/7. Task UPDATE | `update_task` covers everything | Now exposes `descriptionClient`, `descriptionJson`, `descriptionClientJson`, `actualHoursDelta` (additive), `completedAt`, `completedBy`. Use `complete_task` only for the status state-machine walk. **One MCP call per task — no transactional batch**. If you need all-or-nothing semantics across multiple tasks, drop to SQL with `BEGIN; ... COMMIT;` instead. |
 | 7.5. PR review feedback | `list_unscored_pr_findings({ repo, prNumber, scoredBy })` + `score_pr_finding({ findingId, verdict, scoredBy, notes?, reviewerVersion? })` | Verdict enum: `useful \| noise \| wrong`. 409 on duplicate — don't retry. |
 | 8. session_context INSERT | `log_session_context` covers everything | Now exposes `productId`, `taskIds`, `operatorIamUserId`. |
@@ -361,8 +361,9 @@ Ask the operator for:
 - **title** — required.
 - **project** — pick from `mcp__dainos__list_projects` results filtered by the picked product, or `NULL` for an unscoped task.
 - **initial status** — default `in_progress`.
+- **task_type** — required. Use `AskUserQuestion` (single-select) over the enum values `feat | fix | chore | refactor | docs | test`. Pre-select the value inferred from the dominant conventional-commit prefix across commits attributed to this task (`feat→feat, fix→fix, chore→chore, refactor→refactor, docs→docs, test→test`). For prefixes with no enum equivalent (`perf`, `ci`, `build`, `revert`, `style`), pre-select `chore` (same defensive default as 3.5b). The operator can always override.
 
-If `project` is `NULL`, skip 5c.ii–5c.iii and go straight to 5c.iv with no `milestoneId`.
+If `project` is `NULL`, skip 5c.ii–5c.iii and go straight to 5c.iv with no `milestoneId`. `task_type` is collected regardless of `project`.
 
 #### 5c.ii. List milestones on the chosen project
 
@@ -401,6 +402,18 @@ Carry the returned `id` forward as `milestoneId`. Do **not** set `is_billable` o
 #### 5c.iv. Insert the task
 
 Prefer `mcp__dainos__create_task({ title, projectId, milestoneId, status, assigneeId, reporterId, startDate })` — pass `milestoneId` whenever 5c.iii produced one, omit otherwise. The MCP fills server-side defaults (e.g. `priority_score`) correctly. Fall back to SQL `INSERT INTO projects.tasks` only if the MCP is unavailable; include `project_milestone_id` in the column list if you have a milestone id.
+
+**Setting `task_type`:** `mcp__dainos__create_task` does NOT yet accept a `taskType` parameter (as of 2026-05-28). Immediately after the create call returns the new task id, run a one-row SQL UPDATE to persist the value chosen in 5c.i:
+
+```sql
+UPDATE projects.tasks
+   SET task_type = '<selected_task_type>'::projects.task_type,
+       updated_at = NOW()
+ WHERE id = '<new_task_id>'
+   AND tenant_id = '<tenant_id>';
+```
+
+If you fell back to the SQL `INSERT` path, include `task_type` in the column list of the INSERT instead — no follow-up UPDATE needed. Valid enum values: `feat`, `fix`, `chore`, `refactor`, `docs`, `test`.
 
 ---
 
@@ -445,6 +458,7 @@ For each task, propose:
 | `actual_hours` | INCREMENT by `(<session_duration_minutes> / 60) / <count_of_linked_tasks>` (even split, D5). |
 | `assignee_id` | Never auto-change (D5). |
 | `due_date` | Never auto-set (D5). |
+| `task_type` | Only set if currently NULL → infer from the dominant conventional-commit prefix of commits attributed to this task. Mapping: `feat→feat, fix→fix, chore→chore, refactor→refactor, docs→docs, test→test`. Prefixes with no enum equivalent (`perf`, `ci`, `build`, `revert`, `style`) → default to `chore`. Never overwrite a non-NULL value. The Human Gate (6c) is the operator's chance to override or skip. |
 | `updated_at` | NOW() (handled by `@updatedAt` if present, else explicit). |
 
 **Plate paragraph node shape:** every node is `{ "type": "p", "children": [{ "text": "<content>" }] }`. This matches the codebase pattern in `descriptionToPlateValue` (`use-enrichment-commit.ts`). Stick to `p` nodes; do NOT introduce `h2`/`h3` types unless you've verified they render in Task Detail's Plate config.
@@ -467,6 +481,7 @@ About to write to projects.tasks:
   Reporter      <reporter_full_name>      (iam_user_id: <uuid>)
 
   Status        <current> → <proposed>     (auto-flip from "fixes/closes" commit? Y/N)
+  Type          <current> → <proposed>     (inferred from commit prefix; "—" if unchanged or already set)
   Start date    <current> → <proposed>
   Completed at  <proposed_NOW_or_unchanged>
   Hours         actual_hours += <allocated_h> (session minutes <duration> / linked tasks <n>)
@@ -486,7 +501,7 @@ Then use `AskUserQuestion`:
 - Question: `Apply the above to [<task_number>] <title>?`
 - Options:
   - `Apply as proposed`: proceeds to Step 7.
-  - `Edit a field`: re-prompts for which field (status, assignee, hours split, internal copy, client copy, project, title for new tasks). Apply edits, re-render the same block, ask again. Loop until applied or skipped.
+  - `Edit a field`: re-prompts for which field (status, task_type, assignee, hours split, internal copy, client copy, project, title for new tasks). Apply edits, re-render the same block, ask again. Loop until applied or skipped.
   - `Skip this task`: drop from `linked_task_ids`, do not write.
   - `Mark complete instead`: only shown if proposed status is not already `done`. Sets status = `done`, completed_at = NOW(), completed_by = operator. Re-render the block, ask again.
 
@@ -542,6 +557,9 @@ SET description = COALESCE(description, '') || E'\n\nSession <YYYY-MM-DD>\n\n<in
       )
     END,
     start_date = COALESCE(start_date, '<conversation_start_date>'::date),
+    -- task_type: omit this line entirely if the existing task already has a non-NULL value.
+    -- Otherwise set to the value chosen in 6c (already enum-validated).
+    task_type = COALESCE(task_type, '<proposed_task_type>'::projects.task_type),
     status = '<proposed_status>',
     completed_at = CASE WHEN '<proposed_status>' = 'done' THEN NOW() ELSE completed_at END,
     completed_by = CASE WHEN '<proposed_status>' = 'done' THEN '<operator_iam_user_id>'::uuid ELSE completed_by END,
@@ -862,3 +880,5 @@ Written to DainOS. Session: "<session_name>" (id: <uuid>)
 13. **PR review feedback (Step 7.5) never prompts when there are zero unscored findings.** Don't add friction to wrap-ups that didn't touch a reviewed PR.
 14. **Skip = don't write a row.** A `pr_review_finding_feedback` row with a real verdict is a commitment. If the operator picks `Skip`, leave the finding unscored so it resurfaces next session.
 15. **DainOS MCP is the default path.** The fallback table at the top of this skill lists only two exceptions where Supabase is still required: Step 5b's cross-product candidate task query, and Step 7's transactional all-or-nothing task UPDATE batch. Everywhere else, use the MCP — no Supabase token needed.
+16. **`task_type` is one of `feat | fix | chore | refactor | docs | test`.** Required on every new task (Step 5c.i). Inferred from the dominant conventional-commit prefix; unmappable prefixes default to `chore`. Never auto-overwrite an existing non-NULL value — only fill when currently NULL. The Human Gate (6c) always offers an override.
+17. **`mcp__dainos__create_task` does not yet expose `taskType`.** When creating via the MCP, follow up with a one-row SQL UPDATE to set `task_type` (see Step 5c.iv). When this gap closes in the MCP, drop the follow-up UPDATE.

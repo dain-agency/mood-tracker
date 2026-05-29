@@ -1,3 +1,4 @@
+
 ---
 description: Architect Agent — translate human context into technical strategy by reading the codebase
 argument-hint: <path to feature brief>
@@ -214,6 +215,27 @@ If the KB query fails, proceed with just the schema/enum grep. The grep is the l
 
 **Canonical failure:** PR #126 (PRD-051) shipped `ORDER BY severity DESC` on a text column. Rendered `'high'` before `'critical'` in every module. Greptile caught it post-build. Step 6.5's SQL-sort check would have caught it at brief time.
 
+**5. Schema-vs-SQL index parity.** For every `@@unique` and `@@index` you specify on a Prisma model in §7, verify the migration SQL produces an index that matches exactly. Prisma's `@@unique([a, b])` declares a full unique constraint, but the corresponding migration SQL may include `WHERE` clauses, custom column ordering, or different `ON DELETE` semantics that the Prisma directive cannot express. Any divergence will break `prisma migrate diff` the next time a schema change is made, and may either (a) reject historical rows on deploy or (b) silently let duplicates through if the SQL is laxer than Prisma thinks.
+
+Common divergence categories to check:
+
+- **Partial unique indexes.** Prisma cannot model `CREATE UNIQUE INDEX ... WHERE <predicate>`. If the SQL has a `WHERE` clause, the Prisma side must drop `@@unique` and add a comment pointing at the SQL as the source of truth; downstream code must use `findFirst`, not `findUnique`.
+- **FK ON DELETE / ON UPDATE.** Prisma uses `NoAction` / `Cascade` / `Restrict` / `SetNull` / `SetDefault`. SQL uses `NO ACTION` / `CASCADE` / `RESTRICT` / `SET NULL` / `SET DEFAULT`. `NoAction` and `Restrict` look interchangeable but differ on deferred-constraint behaviour — pick the Prisma spelling that matches the SQL keyword exactly.
+- **Index column ordering and sort direction.** Prisma `@@index([a, b])` produces ascending order. SQL `CREATE INDEX ... ON t(a DESC, b ASC)` doesn't match. If the SQL has explicit `DESC`, mirror it in Prisma with `Desc(sort: Desc)` syntax.
+- **Generated columns and default expressions.** Prisma `@default(dbgenerated("expr()"))` works only if the SQL `DEFAULT` matches the exact expression string.
+
+```bash
+# Quick check after writing §7 — grep the in-flight migration SQL and confirm
+# every @@unique / @@index in the Prisma schema has a matching CREATE INDEX line.
+grep -nE '^\s+@@(unique|index)' apps/api/prisma/schema.prisma | head -20
+grep -nE 'CREATE (UNIQUE )?INDEX|REFERENCES.*ON (DELETE|UPDATE)' \
+  apps/api/prisma/migrations/<timestamp>_<name>/migration.sql
+```
+
+Document any deliberate Prisma-vs-SQL mismatch as a `///` comment on the Prisma model so future readers know which side is authoritative.
+
+**Canonical failure:** the Sprint+Cadence build (PR #380) shipped `sprint_drafts` with `@@unique([tenant_id, sprint_id])` in the schema but a partial unique `WHERE status='proposed'` in the SQL. Reviewer caught it post-build; required a third commit to remove the Prisma directive. 30 seconds of grepping at brief time would have flagged it.
+
 ### Step 6.6: Env var namespace pre-flight (MANDATORY before naming any new env var)
 
 Before specifying any new environment variable in §7 or §8 of the brief, verify the prefix does not collide with an existing integration. PR #252's brief originally specified `GITHUB_APP_*` for the new PR-reviewer App; the existing OAuth integration in `apps/api/src/shared/config/index.ts:169-180` already owned that namespace. The collision was caught post-build by an env-append script's idempotency guard — wasted ~10 minutes rewriting the fragment + brief.
@@ -343,6 +365,12 @@ The 10 checks:
 11. **Copy style (MANDATORY — grep before presenting)** — user-facing copy must follow `.claude/rules/copy-style.md`. Before asking the user to review ANY wireframe, run `grep -nE "—|–|…" <path/to/wireframe>` and confirm zero matches. Em dashes (`—`) and en dashes (`–`) are forbidden in rendered copy — they read as AI-generated aesthetic. Replace with commas, full stops, parentheses, or colons as appropriate. UK spelling enforced (colour / organise / customise / analyse / centre, not their US equivalents). See the rules file for the full substitution table.
 
 12. **Duplicate dialog close controls** — `<DialogContent>` renders a default shadcn close X in the top-right. If the wireframe adds its own custom close button (common for iframe modals or multi-step dialogs), pass `showCloseButton={false}` on the DialogContent so the two don't stack. One close control per dialog; never two.
+
+13. **Hugeicon name verification (MANDATORY before locking iconography)** — when the Implementation Spec proposes any icon name from `@hugeicons/core-free-icons`, every name must be verified to exist before the brief locks. Discovery is allowed to propose icons by *intent* (e.g. "bug icon for `fix`, sparkles icon for `feat`") but you, the Architect, lock the exact export. Run:
+    ```bash
+    ls apps/web/node_modules/@hugeicons/core-free-icons/dist/esm/ | grep -i <pattern>
+    ```
+    for each proposed name. Substitute non-existent names against the real exports and document the substitution in the brief. Common pitfalls: `Sparkles01Icon` is wrong (the real one is `SparklesIcon`); `BugIcon` is wrong (`Bug01Icon`); `Tools01Icon` is wrong (`Settings02Icon` or similar is the substitute). The `01Icon` suffix exists for some exports but not all.
 
 If this routine is followed, the user should not need to catch format/layout issues the Architect missed — only genuine UX judgement calls.
 

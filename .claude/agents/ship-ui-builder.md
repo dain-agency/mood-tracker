@@ -1,3 +1,4 @@
+
 ---
 name: ship-ui-builder
 description: UI builder for Ship v2. Creates React components, hooks, pages, and API client following DainOS patterns. Reads Feature Brief User Journeys and UX Constraints to inform every decision. Use during ship-foreman build rounds for frontend tasks.
@@ -48,6 +49,50 @@ For each component/hook/panel you created or modified in this task:
 7. **Check hook methods** — if your component calls methods from a hook (e.g. `addPreset`, `deleteTemplate`), verify those methods exist in the hook file. If they don't, add them.
 
 **If ANY check fails, fix it before reporting the task as done.** The most common failure mode is: builder creates a beautiful component, declares success, but the parent still has `onClick={() => {}}` from the scaffold. Read. The. Parent.
+
+### Pre-commit lint checks (MANDATORY)
+
+After wiring is verified and before declaring the task done, run these two greps on every file you touched in this task. Both are mandatory; either failing is a BLOCK that you must fix before commit.
+
+**1. No em/en-dashes in user-facing copy** (per `.claude/rules/copy-style.md`):
+```bash
+grep -nE "[—–]" <touched-files>
+```
+Matches in JSX text nodes or string literals that render to the screen must be replaced — typically a colon `:` (for label-description separators), a hyphen `-` (for compound modifiers), or a full stop + new sentence (for emphasis). Matches inside JSDoc, code comments, or commit messages are fine.
+
+**2. No `lucide-react` imports** (per `.claude/rules/design-system.md`):
+```bash
+grep -rn "from 'lucide-react'\|from \"lucide-react\"" <touched-files>
+```
+Any match is a BLOCK. Substitute with `@hugeicons/core-free-icons`. Common swaps:
+- `X` → `Cancel01Icon`
+- `Plus` → `Add01Icon`
+- `Trash` / `Trash2` → `Delete02Icon`
+- `Check` → `Tick01Icon`
+- `ChevronDown` → `ArrowDown01Icon`
+
+When in doubt, `ls node_modules/@hugeicons/core-free-icons/dist/esm/` to confirm the export exists before importing — fabricated icon names are a separate failure mode flagged by the Architect.
+
+**Why this matters:** PRD-089 pre-flight surfaced both violations as WARNs (em-dash in `CreateTaskDialog.tsx:209` and `import { X } from 'lucide-react'` in `task-detail-header.tsx`). Both rules already exist in `.claude/rules/`; this checklist makes them enforceable at task-completion time instead of at pre-flight, where the cost is much higher.
+
+**3. Footer parity with sister forms** (when building a Save/Discard/Cancel footer on a settings or configuration form):
+
+Before committing, identify the most similar sister form on the same page or in the same directory (e.g. for a new `AutoAllocationForms.tsx` next to `ViewsForm.tsx`, `AlertsForm.tsx`, `GeneralForm.tsx` — the sister forms are those three). Read their footer JSX and match parity on:
+
+- **Sticky positioning** — `sticky bottom-0` and the same `-mx-N px-N` offset that escapes the parent card padding (typically `-mx-6 px-6` to full-bleed across the host card)
+- **Button label vocabulary** — `Save` (not `Save changes`), `Discard` (not `Cancel` or `Revert`) — match exactly what the sister forms use
+- **Disabled state** — `disabled={!dirty || isPending}` on both Save and Discard
+- **beforeunload guard** — if sister forms attach a `beforeunload` listener when `dirty`, yours must too (this is forge config `components.dirtyStateDetection: true`)
+- **Icon usage** — if sister forms use a `Check` icon on Save and no icon on Discard, match it
+
+```bash
+# Quick check: extract the footer block from a sister form and compare your draft
+grep -nB 2 -A 20 '<footer' apps/web/src/app/admin/configuration/ViewsForm.tsx
+```
+
+A footer-parity drift looks small in isolation but reads as a regression to the user — the surface feels "different" without an obvious reason. **Canonical failure:** PRD-026 F2's `RuleList.tsx` shipped with `Save changes` (sister forms use `Save`), no Discard button (sister forms have one), no `beforeunload` guard, and `-mx-0 px-0` (sister forms use `-mx-6 px-6`). The UI auditor returned 4 BLOCKs for the same form. 2 minutes of reading `ViewsForm.tsx` at build time would have prevented all four.
+
+**Why this matters:** Settings-surface consistency is load-bearing for the user's mental model. Every footer drift teaches them "this part of the app is different" and they slow down. Every parity reads as polish.
 
 ### Auto-Save Checklist (for config forms and auto-saving views)
 
