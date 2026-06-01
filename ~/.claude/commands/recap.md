@@ -19,7 +19,9 @@ For every read, prefer this order. Skip to the next tier only if the higher tier
 2. **Supabase MCP** (`mcp__claude_ai_Supabase__execute_sql`) with project_id `nkwxprrhkifxoeqwvnpu` — fallback for tables not yet exposed via the DainOS MCP.
 3. **Supabase CLI** (`supabase db ...`) — last resort, e.g. when running offline or against a local stack.
 
-The DainOS MCP covers every read this skill needs as of 2026-05-18. Tier 2/3 fallbacks are only relevant when the MCP itself is unavailable.
+The DainOS MCP covers every read this skill needs. As of the v0.8 generic-tools refactor (#405) all reads go through the generic `query` tool against a named resource (call `describe_schema` once if you are unsure of a resource's fields). Tier 2/3 fallbacks are only relevant when the MCP itself is unavailable.
+
+**Note on large results.** `session_context` and `developer_changelog` rows are wide. A broad `query` can overflow the MCP response limit — if that happens, narrow `limit` or tighten the filters rather than re-running the same call.
 
 ---
 
@@ -45,7 +47,7 @@ If `$ARGUMENTS` contained an explicit project slug, use it and skip the rest of 
 Otherwise, parse `git remote get-url origin` for `<owner>/<repo>` (handle both `git@github.com:owner/repo.git` and `https://github.com/owner/repo` forms), then look up the product via the DainOS MCP:
 
 ```
-mcp__dainos__lookup_product_repos({ owner: "<owner>", repo: "<repo>" })
+mcp__dainos__query({ resource: "product_repos", filters: { owner: "<owner>", repo: "<repo>" } })
 ```
 
 Returns an array of `{ productId, tenantId, productName, companyId, isPortalVisible }`.
@@ -61,7 +63,7 @@ Returns an array of `{ productId, tenantId, productName, companyId, isPortalVisi
 Prefer the DainOS MCP:
 
 ```
-mcp__dainos__list_recent_sessions({ project: "<project_slug>", limit: 10 })
+mcp__dainos__query({ resource: "session_context", filters: { project: "<project_slug>" }, sort: { field: "created_at", direction: "desc" }, limit: 15 })
 ```
 
 Filter the returned rows client-side to those with `session_date >= start_date`. If the MCP is unavailable, fall back to SQL:
@@ -76,7 +78,7 @@ WHERE project = '<project_slug>'
 ORDER BY created_at DESC;
 ```
 
-If scope keywords were supplied, narrow with an OR across `tags` (use `tags && ARRAY[...]`) and `session_name`/`summary` (use `ILIKE ANY`). If the scoped query returns zero rows, surface that and offer to re-run without scope.
+If scope keywords were supplied, narrow client-side across `tags` and `session_name`/`summary`. If the scoped filter leaves zero rows, surface that and offer to re-run without scope.
 
 If no sessions in the window, note "No session context recorded in this period" and move on. Do **not** treat this as silent — it usually means /wrap-up was skipped.
 
@@ -85,10 +87,12 @@ If no sessions in the window, note "No session context recorded in this period" 
 ## Step 3: Recent commits
 
 ```
-mcp__dainos__list_changelog({ project: "<project_slug>", since: "<start_date ISO>", limit: 200 })
+mcp__dainos__query({ resource: "developer_changelog", filters: { project: "<project_slug>", since: "<start_date>" }, limit: 200 })
 ```
 
-Returns full changelog rows (camelCase: `commitSha`, `commitType`, `committedAt`, `prNumber`, `prUrl`, etc.) ordered by `committedAt` DESC.
+**`since` must be a full ISO 8601 datetime** (e.g. `2026-05-10T00:00:00Z`). A date-only value like `2026-05-10` is rejected with a 422 `VALIDATION_ERROR`. The filter means `committed_at >= since`.
+
+Returns full changelog rows in **camelCase** (`commitSha`, `commitType`, `committedAt`, `prNumber`, `prUrl`, etc.) ordered by `committedAt` DESC.
 
 If empty, note it — combined with an empty Step 2 it usually means the changelog ingestor isn't running for this project.
 
@@ -101,7 +105,7 @@ Apply scope keywords client-side across `tags`, `scope`, `summary` if supplied.
 If Step 1 resolved one or more `productId` values, summarise the project's task pipeline. For each productId:
 
 ```
-mcp__dainos__summarise_product_tasks({ productId: "<uuid>" })
+mcp__dainos__query({ resource: "product_task_summary", parentId: "<productId>" })
 ```
 
 Returns `{ statusCounts: { backlog, todo, in_progress, review, production_ready, blocked, done, cancelled }, activeTasks: Array<{ id, taskNumber, title, status, assigneeId, projectName, updatedAt, completedAt }> }`. The active list is server-capped to 20 rows ordered by status then `updatedAt` DESC, and includes any `done` tasks completed within the last 7 days.
