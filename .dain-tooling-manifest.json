@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "installed_at": "2026-05-13T11:50:57.748Z",
-  "last_upgrade_at": "2026-05-31T09:06:58.957Z",
-  "library_snapshot_date": "2026-05-31",
+  "last_upgrade_at": "2026-06-01T09:55:34.081Z",
+  "library_snapshot_date": "2026-06-01",
   "tooling_version": "0.2.1",
   "project": {
     "name": "mood-tracker",
@@ -241,8 +241,8 @@
     {
       "slug": "cmd-recap",
       "target_path": "~/.claude/commands/recap.md",
-      "library_version": 4,
-      "installed_sha": "652f27b95c6ae4f600e152364d59fd5e4a0cccc77305bbd4cb6a917a025733ab",
+      "library_version": 5,
+      "installed_sha": "335c81eac1bbba85f7ab1b1a09f540d288f7f4b7f8b826772701160a979848fe",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.732Z"
     },
@@ -297,8 +297,8 @@
     {
       "slug": "cmd-wrap-up",
       "target_path": ".claude/commands/wrap-up.md",
-      "library_version": 11,
-      "installed_sha": "26f3c132af3eb12ba3926b3e67c9f6d915b28bfa9d5d6ecbadff1703f995b5b4",
+      "library_version": 12,
+      "installed_sha": "eb39ec59d80eff7f9bc4727550f0f1c77053459ff47c409d0515653e3dd18b8f",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.734Z"
     },
@@ -605,6 +605,14 @@
       "installed_sha": "cddc80d40a39c44da3b69c11ba19ad70910c7bd50398eec40d67fe0152710464",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.744Z"
+    },
+    {
+      "slug": "rule-instruction-library-canonical",
+      "target_path": ".claude/rules/instruction-library-canonical.md",
+      "library_version": 1,
+      "installed_sha": "a0808f64f2013cf34144a0730f3993c510c41712c708b8246cb595f7c521faaf",
+      "marker": "managed",
+      "installed_at": "2026-06-01T09:55:34.081Z"
     },
     {
       "slug": "rule-otto-ai-routes",

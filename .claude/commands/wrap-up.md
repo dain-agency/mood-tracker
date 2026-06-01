@@ -48,21 +48,21 @@ For every read and write, prefer this order. Skip to the next tier only if the h
 2. **Supabase MCP** (`mcp__claude_ai_Supabase__execute_sql`) with project_id `nkwxprrhkifxoeqwvnpu` — fallback for tables and columns the DainOS MCP doesn't yet expose.
 3. **Supabase CLI** (`supabase db ...`) — last resort, e.g. when running offline or against a local stack.
 
-**Where each tier applies in this skill** (as of 2026-05-18, after the MCP extension wave):
+**Where each tier applies in this skill** (updated 2026-05-31 for the v0.8 generic-tools MCP: reads go through `query`, writes through `mutate`, and a handful of business-logic operations keep dedicated named tools. Call `describe_schema` if you are unsure of a resource's fields):
 
-| Step | DainOS MCP tool | Notes |
+| Step | DainOS MCP call | Notes |
 |------|-----------------|-----|
-| Operator identity | `list_tenant_users({ status: 'active' })` | Returns users in caller's tenant only — no `tenantSlug` arg needed |
-| 3.5. Log commits | `log_changelog_entry({ project, entries: [...] })` | Batch insert (up to 50/call), idempotent on `(project, commit_sha)`. Safe to call even if a CI hook also writes — duplicates are silently skipped |
-| 4b. Product lookup | `lookup_product_repos({ owner, repo })` | Returns `[{ productId, tenantId, productName, companyId, isPortalVisible }]` |
-| 4c. Tenant guard | `get_user({ id })` + `lookup_product_repos` | Compare `user.tenantId` against each product's `tenantId` client-side |
-| 5b. Candidate task query | — | Still uses SQL: the WITH-CTE explicit-refs + recent-open join across all projects under a product has no single-call MCP equivalent. `summarise_product_tasks` returns aggregates, not the full per-task signal-matched list |
-| 5c. Milestone resolution | `list_milestones({ projectId })` | Call before `create_task` whenever `projectId` is set. Orphan tasks (project with milestones but no `milestoneId`) clutter the project view. |
-| 5c. Create milestone | — | No MCP tool yet. Fall back to SQL `INSERT INTO projects.milestones` (see step body) and reuse the returned id on `create_task`. |
-| 5c. Create new task | `create_task` | Server fills `priority_score` default; takes `title, projectId, milestoneId, status, assigneeId, reporterId, startDate`. ALWAYS pass `milestoneId` when the project has milestones — see Step 5c.iii. **Does NOT yet expose `taskType`** — follow the `create_task` MCP call with a one-row SQL UPDATE to set `task_type` (see Step 5c.iv). |
-| 6/7. Task UPDATE | `update_task` covers everything | Now exposes `descriptionClient`, `descriptionJson`, `descriptionClientJson`, `actualHoursDelta` (additive), `completedAt`, `completedBy`. Use `complete_task` only for the status state-machine walk. **One MCP call per task — no transactional batch**. If you need all-or-nothing semantics across multiple tasks, drop to SQL with `BEGIN; ... COMMIT;` instead. |
-| 7.5. PR review feedback | `list_unscored_pr_findings({ repo, prNumber, scoredBy })` + `score_pr_finding({ findingId, verdict, scoredBy, notes?, reviewerVersion? })` | Verdict enum: `useful \| noise \| wrong`. 409 on duplicate — don't retry. |
-| 8. session_context INSERT | `log_session_context` covers everything | Now exposes `productId`, `taskIds`, `operatorIamUserId`. |
+| Operator identity | `query({ resource: 'iam_users', filters: { status: 'active' } })` | Returns users in the caller's tenant only — no `tenantSlug` arg needed. Each row includes `id, email, fullName, displayName, status, tenantId` |
+| 3.5. Log commits | `log_changelog_entry({ project, entries: [...] })` | **Named tool.** Batch insert (up to 50/call), idempotent on `(project, commit_sha)`. Safe to call even if a CI hook also writes — duplicates are silently skipped |
+| 4b. Product lookup | `query({ resource: 'product_repos', filters: { owner, repo } })` | Returns `[{ productId, tenantId, productName, companyId, isPortalVisible }]` |
+| 4c. Tenant guard | `query({ resource: 'iam_users', id })` + product lookup | Compare `user.tenantId` against each product's `tenantId` client-side |
+| 5b. Candidate task query | — | Still uses SQL: the WITH-CTE explicit-refs + recent-open join across all projects under a product has no single-call equivalent. `query({ resource: 'product_task_summary', parentId: productId })` returns aggregates, not the full per-task signal-matched list |
+| 5c. Milestone resolution | `query({ resource: 'milestones', parentId: projectId })` | Call before `create_task` whenever `projectId` is set. Orphan tasks (project with milestones but no `milestoneId`) clutter the project view. |
+| 5c. Create milestone | `mutate({ resource: 'milestones', operation: 'create', parentId: projectId, data })` | `parentId` is the projectId. `data` takes `name` (required), `startDate?`, `dueDate?`, `status?`. Reuse the returned id on `create_task`. |
+| 5c. Create new task | `create_task` | **Named tool.** Server fills `priority_score` default; takes `title, projectId, milestoneId, status, assigneeId, reporterId, startDate`. ALWAYS pass `milestoneId` when the project has milestones — see Step 5c.iii. **Does NOT yet expose `taskType`** — follow the `create_task` call with a one-row SQL UPDATE to set `task_type` (see Step 5c.iv). |
+| 6/7. Task UPDATE | `mutate({ resource: 'tasks', operation: 'update', id, data })` | Exposes `descriptionClient`, `descriptionJson`, `descriptionClientJson`, `actualHoursDelta` (additive), `completedAt`, `completedBy`. Use `complete_task` (named tool) only for the status state-machine walk. **One call per task — no transactional batch**. If you need all-or-nothing semantics across multiple tasks, drop to SQL with `BEGIN; ... COMMIT;` instead. |
+| 7.5. PR review feedback | `query({ resource: 'pr_review_findings', filters: { repo, prNumber, scoredBy } })` + `score_pr_finding({ findingId, verdict, scoredBy, notes?, reviewerVersion? })` | `score_pr_finding` is a named tool. Verdict enum: `useful \| noise \| wrong`. 409 on duplicate — don't retry. |
+| 8. session_context INSERT | `mutate({ resource: 'session_context', operation: 'create', data })` | `data` uses snake_case fields including `product_id`, `task_ids`, `operator_iam_user_id` |
 
 Supabase MCP / CLI is only needed for Step 5b's cross-product query and for the transactional task-UPDATE batch in Step 7 (when explicit ALL-OR-NOTHING semantics are required across multiple tasks).
 
@@ -75,7 +75,7 @@ Before Step 1, check `~/.dain-os/wrap-up.json`. If absent OR missing `operator_i
 1. Query users in the caller's tenant via the MCP:
 
 ```
-mcp__dainos__list_tenant_users({ status: "active" })
+mcp__dainos__query({ resource: "iam_users", filters: { status: "active" } })
 ```
 
 Returns `[{ id, email, fullName, displayName, status, tenantId }, ...]` ordered by fullName. The endpoint always scopes to the caller's own tenant (no `tenantSlug` param) — so when the operator is signed in as their own user, the result is the agency tenant's roster.
@@ -247,7 +247,7 @@ Parse `github_owner` and `github_repo` from the URL (handles both `git@github.co
 A single repo can map to multiple products (e.g. `eoc-herbert` hosts both PEARL and HERBERT; `portunus-pipelines` hosts three pipeline products). Return all matches.
 
 ```
-mcp__dainos__lookup_product_repos({ owner: "<owner>", repo: "<repo>" })
+mcp__dainos__query({ resource: "product_repos", filters: { owner: "<owner>", repo: "<repo>" } })
 ```
 
 Returns `[{ productId, tenantId, productName, companyId, isPortalVisible }, ...]`.
@@ -272,7 +272,7 @@ The check is two independent MCP reads + an in-skill equality assertion:
 
 ```
 // 1) Operator's tenant
-const operator = await mcp__dainos__get_user({ id: "<operator_iam_user_id>" });
+const operator = await mcp__dainos__query({ resource: "iam_users", id: "<operator_iam_user_id>" });
 // → { id, email, fullName, displayName, status, tenantId } or null
 
 // 2) Tenants across every picked product (4b already returned tenantId per row).
@@ -280,12 +280,12 @@ const productTenants = new Set(pickedProducts.map(p => p.tenantId));
 ```
 
 **Pass criteria (all must hold):**
-- `get_user` returns a row (operator exists).
+- the `iam_users` lookup returns a row (operator exists).
 - `productTenants.size === 1` (exactly one distinct tenant across picked products).
 - `operator.tenantId === [...productTenants][0]` (operator and product share a tenant).
 
 **Block conditions:**
-- `get_user` returns null → operator_iam_user_id is invalid / cross-tenant. Halt; ask user to re-run the operator-identity setup.
+- the `iam_users` lookup returns null → operator_iam_user_id is invalid / cross-tenant. Halt; ask user to re-run the operator-identity setup.
 - `pickedProducts.length === 0` (impossible if 4b returned anything — defensive). Halt.
 - `productTenants.size > 1` → picked products span multiple tenants. Halt; ask user to narrow the selection.
 - Tenant mismatch → operator and product belong to different tenants. Halt; this is the misconfigured-repo case the guard exists for.
@@ -310,7 +310,7 @@ From this session, extract:
 
 ### 5b. Query candidate tasks
 
-The DainOS MCP exposes `list_tasks({ projectId, assigneeId, status })` but only one project at a time, and not joined to `product_id`. For wrap-up we need a single query that spans all projects under the picked product(s), so use SQL:
+`query({ resource: 'tasks', filters: { projectId, assigneeId, status } })` filters one project at a time and is not joined to `product_id`. For wrap-up we need a single query that spans all projects under the picked product(s), so use SQL:
 
 ```sql
 WITH operator AS (
@@ -359,7 +359,7 @@ Store the final array of selected task ids as `linked_task_ids`.
 
 Ask the operator for:
 - **title** — required.
-- **project** — pick from `mcp__dainos__list_projects` results filtered by the picked product, or `NULL` for an unscoped task.
+- **project** — pick from `mcp__dainos__query({ resource: "projects", filters: { productId } })` results, or `NULL` for an unscoped task.
 - **initial status** — default `in_progress`.
 - **task_type** — required. Use `AskUserQuestion` (single-select) over the enum values `feat | fix | chore | refactor | docs | test`. Pre-select the value inferred from the dominant conventional-commit prefix across commits attributed to this task (`feat→feat, fix→fix, chore→chore, refactor→refactor, docs→docs, test→test`). For prefixes with no enum equivalent (`perf`, `ci`, `build`, `revert`, `style`), pre-select `chore` (same defensive default as 3.5b). The operator can always override.
 
@@ -367,7 +367,7 @@ If `project` is `NULL`, skip 5c.ii–5c.iii and go straight to 5c.iv with no `mi
 
 #### 5c.ii. List milestones on the chosen project
 
-Call `mcp__dainos__list_milestones({ projectId })`. Three branches:
+Call `mcp__dainos__query({ resource: "milestones", parentId: "<projectId>" })`. Three branches:
 
 1. **Project has no milestones** → no decision to make. Go to 5c.iv with no `milestoneId`. Do not invent a milestone the operator hasn't asked for.
 2. **Project has milestones** → go to 5c.iii.
@@ -389,15 +389,18 @@ Use `AskUserQuestion` (single-select) with the prompt: **"Attach this task to a 
 
 ##### 5c.iii.a. Create a new milestone
 
-There is no `create_milestone` MCP tool yet, so use the Supabase MCP for a direct INSERT. Ask the operator for `name` (required), `start_date` (optional, ISO), `due_date` (optional, ISO). Then run:
+Ask the operator for `name` (required), `start_date` (optional, ISO), `due_date` (optional, ISO). Then create the milestone via `mutate` (parentId is the projectId):
 
-```sql
-INSERT INTO projects.milestones (project_id, name, start_date, due_date, status)
-VALUES ('<projectId>', '<name>', <start_date_or_NULL>, <due_date_or_NULL>, 'pending')
-RETURNING id;
+```
+mcp__dainos__mutate({
+  resource: "milestones",
+  operation: "create",
+  parentId: "<projectId>",
+  data: { name: "<name>", startDate: "<start_date_or_omit>", dueDate: "<due_date_or_omit>", status: "pending" }
+})
 ```
 
-Carry the returned `id` forward as `milestoneId`. Do **not** set `is_billable` or `billable_amount` from wrap-up — those belong to a deliberate financial decision, not a session-recap side effect.
+Carry the returned `id` forward as `milestoneId`. If the MCP is unavailable, fall back to the Supabase MCP with `INSERT INTO projects.milestones (project_id, name, start_date, due_date, status) VALUES (...) RETURNING id`. Do **not** set `is_billable` or `billable_amount` from wrap-up — those belong to a deliberate financial decision, not a session-recap side effect.
 
 #### 5c.iv. Insert the task
 
@@ -513,7 +516,7 @@ Then use `AskUserQuestion`:
 
 ## Step 7: Write the Task Updates
 
-The DainOS MCP `update_task` exposes `status`, `assigneeId`, `priorityMoscow`, `storyPoints`, `estimatedHours`, `dueDate`, `startDate`, `tags`, `title`, `description`. It does NOT expose `description_client`, `description_json`, `description_client_json`, `actual_hours`, `completed_at`, or `completed_by`. Because the bulk of what wrap-up writes lives in the unexposed columns, **default to SQL for the task UPDATE** so we can wrap everything in one transaction. Use `mcp__dainos__complete_task(id)` only for the status state-machine walk when a task moves to `done`, then follow up with SQL for the rest.
+`mutate({ resource: 'tasks', operation: 'update', id, data })` now exposes every field wrap-up writes — `descriptionClient`, `descriptionJson`, `descriptionClientJson`, `actualHoursDelta` (additive), `completedAt`, `completedBy`, plus `status`, `startDate`, etc. So a **single-task** update no longer needs SQL: read the task first (`query tasks id`) to compute the appended description bodies client-side, then `mutate` the full new values. **However, `mutate` is one call per record with no transaction.** When a session links **multiple** tasks and you want all-or-nothing semantics, **default to SQL for the task UPDATE** so the whole batch lands in one `BEGIN; ... COMMIT;` (this is the legitimate Supabase exception in Rule 15). Use `mcp__dainos__complete_task(id)` only for the status state-machine walk when a task moves to `done`.
 
 Wrap all task UPDATEs in a single transaction.
 
@@ -600,10 +603,9 @@ If a worktree's branch has no PR, skip. Collect the set of `(repo, pr_number)` p
 For each `(repo, pr_number)`, query unscored findings via the MCP:
 
 ```
-mcp__dainos__list_unscored_pr_findings({
-  repo: "<owner>/<repo>",
-  prNumber: <pr_number>,
-  scoredBy: "<operator_iam_user_id>"
+mcp__dainos__query({
+  resource: "pr_review_findings",
+  filters: { repo: "<owner>/<repo>", prNumber: <pr_number>, scoredBy: "<operator_iam_user_id>" }
 })
 ```
 
@@ -715,13 +717,13 @@ Skip:
 
 ### 7.6b. Dedupe
 
-For each candidate, run `mcp__dainos__search_knowledge_base` with a short query matching the title's key noun and the module:
+For each candidate, search the KB with a short query matching the title's key noun and the module:
 
 ```
-mcp__dainos__search_knowledge_base({ project: "dain-os", q: "<noun>", module: "<area>", limit: 5 })
+mcp__dainos__query({ resource: "developer_knowledge_base", search: "<noun>", filters: { project: "dain-os", module: "<area>" }, limit: 5 })
 ```
 
-If an entry already exists and the new occurrence reinforces it, call `mcp__dainos__update_knowledge_base_entry` to append a new source_ref / refine prevention. If the existing entry is materially different, log a new one — KB cross-references are cheap, near-misses are expensive.
+If an entry already exists and the new occurrence reinforces it, call `mcp__dainos__mutate({ resource: "developer_knowledge_base", operation: "update", id: "<entry_id>", data: { ... } })` to append a new source_ref / refine prevention. If the existing entry is materially different, log a new one — KB cross-references are cheap, near-misses are expensive.
 
 ### 7.6c. Log
 
@@ -759,7 +761,7 @@ If zero entries felt worth logging, write `| 0 | nothing KB-worthy this session 
 
 ## Step 8: Write Session Context
 
-INSERT one row into `developer.session_context` via the MCP. As of #319 the tool covers the relational fields (`productId`, `taskIds`, `operatorIamUserId`) alongside the core columns.
+Create one row in `developer.session_context` via `mutate`. The resource covers the relational fields (`product_id`, `task_ids`, `operator_iam_user_id`) alongside the core columns.
 
 Resolve `<machine hostname>` by running `hostname` in the shell first:
 
@@ -801,28 +803,34 @@ Then `AskUserQuestion`:
 
 If "Cancel session_context write" is chosen, the task writes from Step 7 are NOT rolled back; only the session_context row is skipped. Tell the user explicitly that the session is now untracked but the task updates already landed.
 
+Create the row via `mutate`. The `session_context` resource uses **snake_case** field names (confirm with `describe_schema` if unsure):
+
 ```
-mcp__dainos__log_session_context({
-  project: "<project_slug>",
-  sessionName: "<descriptive session name>",
-  sessionDate: "<YYYY-MM-DD>",
-  operator: "<model name e.g. claude-opus-4.7>",
-  machine: "<resolved hostname from `hostname` shell call>",
-  durationMinutes: <estimated minutes>,
-  summary: "<summary>",
-  decisionsMade: [<{ decision, reason }>...],
-  handoffNotes: "<handoff narrative>",
-  filesTouched: [<files>],
-  tasksCompleted: [<task_titles_completed_text>],
-  blockers: [<blockers>],
-  tags: [<tags>],
-  productId: "<product_id_or_null>",
-  taskIds: ["<linked_task_id>", ...],
-  operatorIamUserId: "<operator_iam_user_id>"
+mcp__dainos__mutate({
+  resource: "session_context",
+  operation: "create",
+  data: {
+    project: "<project_slug>",
+    session_name: "<descriptive session name>",
+    session_date: "<YYYY-MM-DD>",
+    operator: "<model name e.g. claude-opus-4.8>",
+    machine: "<resolved hostname from `hostname` shell call>",
+    duration_minutes: <estimated minutes>,
+    summary: "<summary>",
+    decisions_made: [<{ decision, reason }>...],
+    handoff_notes: "<handoff narrative>",
+    files_touched: [<files>],
+    tasks_completed: [<task_titles_completed_text>],
+    blockers: [<blockers>],
+    tags: [<tags>],
+    product_id: "<product_id_or_null>",
+    task_ids: ["<linked_task_id>", ...],
+    operator_iam_user_id: "<operator_iam_user_id>"
+  }
 })
 ```
 
-If `productId` was not resolved (Step 4 returned no row and user chose "Skip"), omit it (or pass `null`). Same for `taskIds` (omit or pass `[]`) — the API treats both as "not linked".
+If `product_id` was not resolved (Step 4 returned no row and user chose "Skip"), omit it (or pass `null`). Same for `task_ids` (omit or pass `[]`) — the API treats both as "not linked".
 
 ---
 
