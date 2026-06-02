@@ -11,6 +11,21 @@ End-of-session command. Commits all uncommitted work across all worktrees, pushe
 
 ---
 
+## Capture is the priority — create, don't skip
+
+The entire point of wrap-up is that **no work leaves the session unrecorded in DainOS.** If the session's work does not map to an existing task, the default is to **CREATE one**, not to skip task linking. "None of these" / "Skip task linking" is the rare exception (a throwaway spike, or a session that genuinely shipped nothing trackable), never the fallback for "I couldn't find a match".
+
+**The capture ladder — climb only as far as you must to give the work a home:**
+
+1. An **existing task** the session worked on → link it.
+2. No matching task → **create a task** under an existing milestone.
+3. The project has no suitable milestone → **create a milestone**, then the task under it.
+4. The product has no suitable project → **create a project** under the product, then a milestone, then the task.
+
+Always prefer the lowest rung that fits — creating a project is the rare top of the ladder, not a first move. But a missing rung is never a reason to skip; it is a reason to create it. This holds in BOTH interactive and auto mode. The only difference: interactive confirms each rung at the Human Gate (Step 6c), while auto mode creates with inferred values and logs the full created chain into the Step 9 report for post-hoc audit.
+
+---
+
 ## Auto Mode
 
 **If `$ARGUMENTS` contains `auto`:** run the entire wrap-up without interactive prompts. Every `AskUserQuestion` call is replaced by the auto-default listed below. Use this for background agents, scheduled wrap-ups, or when the operator has pre-approved the session's scope.
@@ -22,18 +37,19 @@ End-of-session command. Commits all uncommitted work across all worktrees, pushe
 | Operator identity | AskUserQuestion to pick from tenant roster | Auto-select if exactly one user; FAIL if multiple (cannot guess) |
 | 2d. Pre-commit hook failure | Ask: fix, --no-verify, or skip | Attempt trivial fix (unused imports, formatting). If fix fails, commit with `--no-verify` and log a warning. |
 | 4b. Multiple products | AskUserQuestion multiSelect | Select ALL matched products (session likely touched all) |
-| 4b. No product mapped | Ask: skip or register | Skip task linking, log warning |
-| 5c. Task matching | AskUserQuestion multiSelect from candidates | Auto-select tasks matched by explicit commit refs in subjects. If no explicit refs, select the single most-recently-updated task assigned to the operator. If zero candidates, skip task linking. |
-| 5c. Create new task | Interactive title/project/milestone flow | Never auto-create. Skip to Step 8 with no task link. |
-| 6c. Human gate review | Per-task AskUserQuestion with full field block | Apply all proposals as-is. Log the full proposed block to the session summary so the operator can audit post-hoc. |
+| 4b. No product mapped | Ask: skip or register | Skip task linking, log warning. (This is the ONE genuine skip: with no product resolved, there is no home to create under.) |
+| 5c. Task matching | AskUserQuestion multiSelect from candidates | Auto-select tasks matched by explicit commit refs in subjects. Else if a single recent open task assigned to the operator clearly fits the work's domain, select it. **If nothing matches, do NOT skip — create a task (next row).** |
+| 5c. Create new task / climb the ladder | Interactive title/project/milestone flow | **Auto-create is the NORM when nothing matched.** Infer the title from the branch slug + dominant commit summary, and the type from the dominant conventional-commit prefix. Resolve the project: reuse the single/best-fit existing project under the product; if the product has none, create one named after the product or work theme. Resolve the milestone: reuse an open/best-fit milestone; if the project has none, create one (name from the work theme, e.g. the branch slug or "<Month> <Year>"). Then create the task under that milestone. Log the full created chain (project/milestone/task ids + inferred fields) in the Step 9 report. Only skip task creation entirely if Step 4 could not resolve a product. |
+| 6c. Human gate review | Per-task AskUserQuestion with full field block | Apply all proposals as-is. Log the full proposed block (including any created project/milestone) to the session summary so the operator can audit post-hoc. |
 | 7.5c. PR review scoring | AskUserQuestion per finding batch | Skip entirely. Findings remain unscored for the next interactive session. |
 | 7.6. KB learnings | Identify and log candidates | Still runs. KB entries are non-destructive and do not need confirmation. |
 | 8a. Session context | AskUserQuestion to confirm | Write without confirmation. |
 
 **Safety rails in auto mode:**
-- Tenant consistency guard (Step 4c) still runs and will FAIL on mismatch. No auto-bypass.
+- Tenant consistency guard (Step 4c) still runs and will FAIL on mismatch. No auto-bypass. Auto-created projects/milestones/tasks inherit the operator's tenant — never create across tenants.
 - Transaction rollback on SQL error (Step 7) still halts. No auto-retry.
 - `--no-verify` usage is logged as a warning in the Step 9 report so the operator knows hooks were skipped.
+- Auto-created entities (project, milestone, task) are always logged in the Step 9 report with their ids and the inferred fields, so the operator can audit or rename them later.
 - If operator identity cannot be auto-resolved (multiple users in tenant), the entire wrap-up FAILS rather than guessing.
 
 **To invoke:** `/wrap-up auto` or `/wrap-up auto <summary override>`
@@ -57,6 +73,8 @@ For every read and write, prefer this order. Skip to the next tier only if the h
 | 4b. Product lookup | `query({ resource: 'product_repos', filters: { owner, repo } })` | Returns `[{ productId, tenantId, productName, companyId, isPortalVisible }]` |
 | 4c. Tenant guard | `query({ resource: 'iam_users', id })` + product lookup | Compare `user.tenantId` against each product's `tenantId` client-side |
 | 5b. Candidate task query | — | Still uses SQL: the WITH-CTE explicit-refs + recent-open join across all projects under a product has no single-call equivalent. `query({ resource: 'product_task_summary', parentId: productId })` returns aggregates, not the full per-task signal-matched list |
+| 5c. Project resolution | `query({ resource: 'projects', filters: { productId } })` | Resolve the project before milestone/task. If none exist under the product, CREATE one (Step 5c.i.a) — do not fall back to an unscoped task. |
+| 5c. Create project | `mutate({ resource: 'projects', operation: 'create', data })` | `data` takes `name` (required), `productId`, `status?`. Call `describe_schema` for exact fields. Reuse the returned id on the milestone + task. |
 | 5c. Milestone resolution | `query({ resource: 'milestones', parentId: projectId })` | Call before `create_task` whenever `projectId` is set. Orphan tasks (project with milestones but no `milestoneId`) clutter the project view. |
 | 5c. Create milestone | `mutate({ resource: 'milestones', operation: 'create', parentId: projectId, data })` | `parentId` is the projectId. `data` takes `name` (required), `startDate?`, `dueDate?`, `status?`. Reuse the returned id on `create_task`. |
 | 5c. Create new task | `create_task` | **Named tool.** Server fills `priority_score` default; takes `title, projectId, milestoneId, status, assigneeId, reporterId, startDate`. ALWAYS pass `milestoneId` when the project has milestones — see Step 5c.iii. **Does NOT yet expose `taskType`** — follow the `create_task` call with a one-row SQL UPDATE to set `task_type` (see Step 5c.iv). |
@@ -184,6 +202,8 @@ For each row:
 - **`task_ref`**: parse `[A-Z]+-\d+` from the commit body via `git log -1 --format=%B <sha>`. Omit if absent.
 - **`pr_url`**: derive from `pr_number` + the repo: `https://github.com/<owner>/<repo>/pull/<pr_number>`. Omit if `pr_number` is unknown.
 
+**Use the FULL 40-character SHA.** Never pad, truncate, or placeholder a SHA — the changelog is keyed on `(project, commit_sha)` and a fabricated SHA creates an un-deletable bad row (the resource supports only `list` and `update`, not `delete`).
+
 ### 3.5c. Batch and write
 
 Group entries by **project slug** (= the `github_repo` name from `git remote get-url origin`). Different project slugs need separate MCP calls.
@@ -257,7 +277,7 @@ Returns `[{ productId, tenantId, productName, companyId, isPortalVisible }, ...]
 Ask via `AskUserQuestion`: "No DainOS product is mapped to this repo (`<owner>/<repo>`). Skip task linking for this worktree, or register the repo?"
 
 Options:
-- "Skip task linking": leave `product_id = NULL` for this worktree's session context, continue to Step 8 (write session_context with no product/task links).
+- "Skip task linking": leave `product_id = NULL` for this worktree's session context, continue to Step 8 (write session_context with no product/task links). This is the one genuine skip — with no product resolved there is no home to create a task under.
 - "Register repo": list existing products in the tenant (no MCP tool for `projects.products` enumeration yet — use SQL `SELECT id, name FROM projects.products WHERE tenant_id = <caller_tenant>`), let the user pick one (or pick "create new product"), then INSERT into `projects.product_repos` with the chosen `product_id`, `github_owner`, `github_repo`, `github_repo_id` (fetch from the GitHub API), `default_branch`, `is_private`.
 
 **If exactly one row returned:** store `productId`, `tenantId`, `companyId` and continue.
@@ -266,7 +286,7 @@ Options:
 
 ### 4c. Tenant consistency guard
 
-Before any write in Step 7 / Step 8, assert that every picked product's `tenantId` equals the operator's `tenantId`. If a mismatch is detected, STOP and surface the conflict to the user via `AskUserQuestion`. This almost always means a misconfigured repo mapping. Do NOT proceed with writes that span tenants.
+Before any write in Step 7 / Step 8, assert that every picked product's `tenantId` equals the operator's `tenantId`. If a mismatch is detected, STOP and surface the conflict to the user via `AskUserQuestion`. This almost always means a misconfigured repo mapping. Do NOT proceed with writes that span tenants. Any project/milestone/task you create inherits this tenant — never create across tenants.
 
 The check is two independent MCP reads + an in-skill equality assertion:
 
@@ -296,9 +316,9 @@ The Step 4b query selects `p.is_portal_visible` for visibility context only. It 
 
 ---
 
-## Step 5: Match Tasks
+## Step 5: Match or Create Tasks
 
-Match one or more `projects.tasks` rows the session worked on.
+Match one or more `projects.tasks` rows the session worked on. **If none match, create one** — see the capture ladder at the top. The end state of this step is that every piece of trackable work has a task id, except the rare deliberate-skip cases (no product resolved, or a throwaway spike).
 
 ### 5a. Collect signals
 
@@ -344,32 +364,47 @@ WHERE t.id IN (SELECT id FROM explicit_refs)
    OR t.id IN (SELECT id FROM recent_open);
 ```
 
-### 5c. Present candidates
+### 5c. Present candidates (capture-first)
 
 - If `explicit_refs` returned tasks, pre-select those (high confidence).
 - Otherwise show top 5 from `recent_open` sorted by `updated_at DESC`.
-- Use `AskUserQuestion` (multiSelect: true) with each candidate as an option labelled `[task_number] title (project_name, status)`.
-- Allow "None of these" / "Create new task" branches:
-  - "None of these": log session_context with `product_id` set but `task_ids = '{}'`, skip to Step 8.
-  - "Create new task": follow Step 5c.i → 5c.iii → 5c.iv below. Add the returned task id to the linked set.
+- Use `AskUserQuestion` (multiSelect: true) with each candidate as an option labelled `[task_number] title (project_name, status)`, **plus a prominent "Create a new task for this work" option.** When no candidate is a genuine match, "Create a new task" is the EXPECTED choice — lead the operator toward it, not toward skipping. Selecting it follows Step 5c.i → 5c.iv (the ladder) and adds the returned task id to the linked set.
+- "None of these, leave untracked" remains available but is the rare exception (a throwaway spike, or a session that shipped nothing trackable). If chosen, log session_context with `product_id` set but `task_ids = '{}'`, and state explicitly in the Step 9 report that the work was deliberately left untracked.
 
 Store the final array of selected task ids as `linked_task_ids`.
 
 #### 5c.i. Collect task basics
 
-Ask the operator for:
-- **title** — required.
-- **project** — pick from `mcp__dainos__query({ resource: "projects", filters: { productId } })` results, or `NULL` for an unscoped task.
+Ask the operator for (auto mode infers each):
+- **title** — required. Auto: infer from the branch slug + dominant commit summary.
+- **project** — resolve via the capture ladder, do NOT default to an unscoped (`NULL`) task. Query `mcp__dainos__query({ resource: "projects", filters: { productId } })`:
+  - One or more projects exist → pick the best fit (the project whose name/area matches the work, or the single project if there's only one). Interactive: `AskUserQuestion`. Auto: pick the single/best-fit.
+  - **No project exists under the product** → create one (Step 5c.i.a). A product with shipped work but no project is the signal to CREATE the project, not to fall back to an unscoped task.
+  - `NULL` (unscoped) is reserved for genuinely product-less work (a cross-cutting spike) — the rare exception, not the default.
 - **initial status** — default `in_progress`.
 - **task_type** — required. Use `AskUserQuestion` (single-select) over the enum values `feat | fix | chore | refactor | docs | test`. Pre-select the value inferred from the dominant conventional-commit prefix across commits attributed to this task (`feat→feat, fix→fix, chore→chore, refactor→refactor, docs→docs, test→test`). For prefixes with no enum equivalent (`perf`, `ci`, `build`, `revert`, `style`), pre-select `chore` (same defensive default as 3.5b). The operator can always override.
 
-If `project` is `NULL`, skip 5c.ii–5c.iii and go straight to 5c.iv with no `milestoneId`. `task_type` is collected regardless of `project`.
+`task_type` is collected regardless of `project`. If `project` resolves to `NULL` (rare), skip 5c.ii–5c.iii and go straight to 5c.iv with no `milestoneId`.
+
+##### 5c.i.a. Create a new project (top of the ladder)
+
+Only when the product has no suitable project. Create it under the product via `mutate` (call `describe_schema` for the `projects` resource if unsure of required fields; typically `name` (required), `productId`, `status`):
+
+```
+mcp__dainos__mutate({
+  resource: "projects",
+  operation: "create",
+  data: { name: "<name>", productId: "<productId>", status: "active" }
+})
+```
+
+Name it after the work theme or the product. Interactive: confirm the name via `AskUserQuestion`. Auto: infer from the product name or the branch slug. Carry the returned `id` forward as `projectId` and continue to 5c.ii (milestone). If the MCP rejects the create, fall back to the Supabase MCP `INSERT INTO projects.projects (tenant_id, product_id, name, status) VALUES (...) RETURNING id`.
 
 #### 5c.ii. List milestones on the chosen project
 
 Call `mcp__dainos__query({ resource: "milestones", parentId: "<projectId>" })`. Three branches:
 
-1. **Project has no milestones** → no decision to make. Go to 5c.iv with no `milestoneId`. Do not invent a milestone the operator hasn't asked for.
+1. **Project has no milestones** → create one rather than leaving the task orphaned (the MCP flags orphan tasks under a milestoned project as a smell; a brand-new project with no milestone is the same signal to create one). Go to 5c.iii.a. Interactive may still offer "leave unassigned" but should not default to it.
 2. **Project has milestones** → go to 5c.iii.
 3. **MCP error** → fall back to SQL:
    ```sql
@@ -379,17 +414,19 @@ Call `mcp__dainos__query({ resource: "milestones", parentId: "<projectId>" })`. 
     ORDER BY sort_order, due_date NULLS LAST;
    ```
 
-#### 5c.iii. Decide milestone (mandatory three-way prompt when 5c.ii returned ≥1 milestone)
+#### 5c.iii. Decide milestone (prefer attach; prefer create over orphan)
 
 Use `AskUserQuestion` (single-select) with the prompt: **"Attach this task to a milestone?"** and the following options (in this order):
 
 - One option per existing milestone, labelled `<name> (<status>, due <due_date or "no date">)`. Selecting one carries its `id` forward as `milestoneId`.
 - **"Create new milestone"** → go to 5c.iii.a.
-- **"Leave unassigned"** → carry forward with no `milestoneId`. Acceptable but should be the exception, not the default. The MCP description explicitly flags orphan tasks under a milestoned project as a code smell, so prefer attaching wherever it fits.
+- **"Leave unassigned"** → carry forward with no `milestoneId`. The rare exception, not the default. The MCP description explicitly flags orphan tasks under a milestoned project as a code smell, so prefer attaching or creating wherever it fits.
+
+Auto mode: reuse the best-fit open milestone; if none, create one (5c.iii.a). Never auto-leave a task orphaned under a milestoned (or freshly-created) project.
 
 ##### 5c.iii.a. Create a new milestone
 
-Ask the operator for `name` (required), `start_date` (optional, ISO), `due_date` (optional, ISO). Then create the milestone via `mutate` (parentId is the projectId):
+Ask the operator for `name` (required), `start_date` (optional, ISO), `due_date` (optional, ISO). Auto: infer `name` from the work theme (branch slug) or default to "<Month> <Year>". Then create the milestone via `mutate` (parentId is the projectId):
 
 ```
 mcp__dainos__mutate({
@@ -468,7 +505,7 @@ For each task, propose:
 
 ### 6c. Human gate review (mandatory)
 
-**Before any DB write in Step 7, recall every material field back to the user in a structured block.** This is the equivalent of the tenant-guard line from Step 4c: the user should be able to read what's about to happen and stop you. Do NOT collapse this into a single "Create new task" prompt. Show the whole proposed shape.
+**Before any DB write in Step 7, recall every material field back to the user in a structured block.** This is the equivalent of the tenant-guard line from Step 4c: the user should be able to read what's about to happen and stop you. Do NOT collapse this into a single "Create new task" prompt. Show the whole proposed shape, INCLUDING any project or milestone created on the ladder in Step 5c.
 
 For EACH task in `linked_task_ids` (whether new or existing), render this block verbatim before prompting:
 
@@ -476,7 +513,8 @@ For EACH task in `linked_task_ids` (whether new or existing), render this block 
 About to write to projects.tasks:
 
   Product       Dain-OS (<owner>/<repo>)
-  Project       <project_name>            (id: <project_id_or_NULL>)
+  Project       <project_name>            (id: <project_id_or_NULL>)   <created this run? Y/N>
+  Milestone     <milestone_name>          (id: <milestone_id_or_NULL>) <created this run? Y/N>
   Task          [<task_number_or_TASK-NEW>] <title>
                 <new | existing>
 
@@ -504,7 +542,7 @@ Then use `AskUserQuestion`:
 - Question: `Apply the above to [<task_number>] <title>?`
 - Options:
   - `Apply as proposed`: proceeds to Step 7.
-  - `Edit a field`: re-prompts for which field (status, task_type, assignee, hours split, internal copy, client copy, project, title for new tasks). Apply edits, re-render the same block, ask again. Loop until applied or skipped.
+  - `Edit a field`: re-prompts for which field (status, task_type, assignee, hours split, internal copy, client copy, project, milestone, title for new tasks). Apply edits, re-render the same block, ask again. Loop until applied or skipped.
   - `Skip this task`: drop from `linked_task_ids`, do not write.
   - `Mark complete instead`: only shown if proposed status is not already `done`. Sets status = `done`, completed_at = NOW(), completed_by = operator. Re-render the block, ask again.
 
@@ -586,7 +624,7 @@ If the transaction fails, ROLLBACK and report the error to the user. Do NOT retr
 
 For each PR opened or updated by commits pushed in this session, score any unscored DainOS-reviewer findings so we can tune the reviewer (and validate retiring Greptile by end of month).
 
-This step writes to `developer.pr_review_finding_feedback`. No MCP tool yet — SQL only.
+This step writes to `developer.pr_review_finding_feedback`. Use the `score_pr_finding` named tool.
 
 ### 7.5a. Discover PRs touched this session
 
@@ -742,7 +780,7 @@ Batch new entries (1-50 per call) into `mcp__dainos__log_knowledge_base_entry`. 
 | `source_refs` | Array of PR URLs, file paths, commit SHAs — anything a future reader can click |
 | `tags` | Searchable keywords (lowercase, hyphenated multi-word) |
 
-Use project `"universal"` instead of `"dain-os"` only when the lesson is genuinely cross-product (e.g. a Node/OpenSSL quirk, a Supabase platform behaviour). Most lessons are project-specific.
+Use project `"universal"` instead of `"dain-os"` only when the lesson is genuinely cross-product (e.g. a Node/OpenSSL quirk, a Supabase platform behaviour, a GitHub/gh-CLI workflow gotcha). Most lessons are project-specific.
 
 ### 7.6d. Report
 
@@ -849,6 +887,14 @@ Present a concise summary:
 ## Product
 <product_name> (<owner>/<repo>) - session_context.product_id = <uuid>
 
+## Captured in DainOS
+(List anything CREATED this run so the operator can audit/rename.)
+| Entity | Name | Id | Created |
+|--------|------|----|---------|
+| Project | <name> | <uuid> | new this run / reused |
+| Milestone | <name> | <uuid> | new this run / reused |
+| Task | [<task_number>] <title> | <uuid> | new this run / reused |
+
 ## Tasks Updated
 | Task | Status | Hours | Internal Δ | Client Δ |
 |------|--------|-------|------------|----------|
@@ -890,3 +936,5 @@ Written to DainOS. Session: "<session_name>" (id: <uuid>)
 15. **DainOS MCP is the default path.** The fallback table at the top of this skill lists only two exceptions where Supabase is still required: Step 5b's cross-product candidate task query, and Step 7's transactional all-or-nothing task UPDATE batch. Everywhere else, use the MCP — no Supabase token needed.
 16. **`task_type` is one of `feat | fix | chore | refactor | docs | test`.** Required on every new task (Step 5c.i). Inferred from the dominant conventional-commit prefix; unmappable prefixes default to `chore`. Never auto-overwrite an existing non-NULL value — only fill when currently NULL. The Human Gate (6c) always offers an override.
 17. **`mcp__dainos__create_task` does not yet expose `taskType`.** When creating via the MCP, follow up with a one-row SQL UPDATE to set `task_type` (see Step 5c.iv). When this gap closes in the MCP, drop the follow-up UPDATE.
+18. **Capture-first: create, don't skip.** Never end a session with trackable work unrecorded in DainOS. When no task matches, the DEFAULT is to create one, climbing the ladder (task → milestone → project) only as far as needed to give the work a home. Skipping task linking is reserved for two cases: Step 4 could not resolve a product, or the session genuinely shipped nothing trackable (a throwaway spike). It is never the fallback for "I couldn't find a matching task". This holds in auto mode too — auto-create with inferred values and log the created chain in the Step 9 report for audit.
+19. **Never fabricate a commit SHA.** Always use the full 40-character SHA from git. The changelog is keyed on `(project, commit_sha)` and supports only `list`/`update` (no `delete`), so a placeholder or padded SHA leaves an un-removable bad row.
