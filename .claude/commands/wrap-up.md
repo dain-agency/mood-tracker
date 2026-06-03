@@ -77,8 +77,8 @@ For every read and write, prefer this order. Skip to the next tier only if the h
 | 5c. Create project | `mutate({ resource: 'projects', operation: 'create', data })` | `data` takes `name` (required), `productId`, `status?`. Call `describe_schema` for exact fields. Reuse the returned id on the milestone + task. |
 | 5c. Milestone resolution | `query({ resource: 'milestones', parentId: projectId })` | Call before `create_task` whenever `projectId` is set. Orphan tasks (project with milestones but no `milestoneId`) clutter the project view. |
 | 5c. Create milestone | `mutate({ resource: 'milestones', operation: 'create', parentId: projectId, data })` | `parentId` is the projectId. `data` takes `name` (required), `startDate?`, `dueDate?`, `status?`. Reuse the returned id on `create_task`. |
-| 5c. Create new task | `create_task` | **Named tool.** Server fills `priority_score` default; takes `title, projectId, milestoneId, status, assigneeId, reporterId, startDate`. ALWAYS pass `milestoneId` when the project has milestones — see Step 5c.iii. **Does NOT yet expose `taskType`** — follow the `create_task` call with a one-row SQL UPDATE to set `task_type` (see Step 5c.iv). |
-| 6/7. Task UPDATE | `mutate({ resource: 'tasks', operation: 'update', id, data })` | Exposes `descriptionClient`, `descriptionJson`, `descriptionClientJson`, `actualHoursDelta` (additive), `completedAt`, `completedBy`. Use `complete_task` (named tool) only for the status state-machine walk. **One call per task — no transactional batch**. If you need all-or-nothing semantics across multiple tasks, drop to SQL with `BEGIN; ... COMMIT;` instead. |
+| 5c. Create new task | `create_task` | **Named tool.** Server fills `priority_score` default; takes `title, projectId, milestoneId, status, taskType, assigneeId, reporterId, startDate` (and more — see `describe_schema`). ALWAYS pass `milestoneId` when the project has milestones — see Step 5c.iii. Pass `taskType` directly (MCP ≥ 0.14.0) — no follow-up SQL UPDATE needed. |
+| 6/7. Task UPDATE | `mutate({ resource: 'tasks', operation: 'update', id, data })` | Exposes `descriptionClient`, `descriptionJson`, `descriptionClientJson`, `actualHoursDelta` (additive), `completedAt`, `completedBy`, `taskType`. Use `complete_task` (named tool) only for the status state-machine walk. **One call per task — no transactional batch**. If you need all-or-nothing semantics across multiple tasks, drop to SQL with `BEGIN; ... COMMIT;` instead. |
 | 7.5. PR review feedback | `query({ resource: 'pr_review_findings', filters: { repo, prNumber, scoredBy } })` + `score_pr_finding({ findingId, verdict, scoredBy, notes?, reviewerVersion? })` | `score_pr_finding` is a named tool. Verdict enum: `useful \| noise \| wrong`. 409 on duplicate — don't retry. |
 | 8. session_context INSERT | `mutate({ resource: 'session_context', operation: 'create', data })` | `data` uses snake_case fields including `product_id`, `task_ids`, `operator_iam_user_id` |
 
@@ -441,19 +441,9 @@ Carry the returned `id` forward as `milestoneId`. If the MCP is unavailable, fal
 
 #### 5c.iv. Insert the task
 
-Prefer `mcp__dainos__create_task({ title, projectId, milestoneId, status, assigneeId, reporterId, startDate })` — pass `milestoneId` whenever 5c.iii produced one, omit otherwise. The MCP fills server-side defaults (e.g. `priority_score`) correctly. Fall back to SQL `INSERT INTO projects.tasks` only if the MCP is unavailable; include `project_milestone_id` in the column list if you have a milestone id.
+Prefer `mcp__dainos__create_task({ title, projectId, milestoneId, status, taskType, assigneeId, reporterId, startDate })` — pass `milestoneId` whenever 5c.iii produced one, omit otherwise. Pass `taskType` directly (the value chosen in 5c.i). The MCP fills server-side defaults (e.g. `priority_score`) correctly. Fall back to SQL `INSERT INTO projects.tasks` only if the MCP is unavailable; include `project_milestone_id` in the column list if you have a milestone id, and `task_type` in the column list too.
 
-**Setting `task_type`:** `mcp__dainos__create_task` does NOT yet accept a `taskType` parameter (as of 2026-05-28). Immediately after the create call returns the new task id, run a one-row SQL UPDATE to persist the value chosen in 5c.i:
-
-```sql
-UPDATE projects.tasks
-   SET task_type = '<selected_task_type>'::projects.task_type,
-       updated_at = NOW()
- WHERE id = '<new_task_id>'
-   AND tenant_id = '<tenant_id>';
-```
-
-If you fell back to the SQL `INSERT` path, include `task_type` in the column list of the INSERT instead — no follow-up UPDATE needed. Valid enum values: `feat`, `fix`, `chore`, `refactor`, `docs`, `test`.
+**Setting `task_type`:** as of MCP server 0.14.0, `mcp__dainos__create_task` accepts `taskType` directly — just include it in the create call. Valid enum values: `feat`, `fix`, `chore`, `refactor`, `docs`, `test`. No follow-up SQL UPDATE is needed.
 
 ---
 
@@ -935,6 +925,6 @@ Written to DainOS. Session: "<session_name>" (id: <uuid>)
 14. **Skip = don't write a row.** A `pr_review_finding_feedback` row with a real verdict is a commitment. If the operator picks `Skip`, leave the finding unscored so it resurfaces next session.
 15. **DainOS MCP is the default path.** The fallback table at the top of this skill lists only two exceptions where Supabase is still required: Step 5b's cross-product candidate task query, and Step 7's transactional all-or-nothing task UPDATE batch. Everywhere else, use the MCP — no Supabase token needed.
 16. **`task_type` is one of `feat | fix | chore | refactor | docs | test`.** Required on every new task (Step 5c.i). Inferred from the dominant conventional-commit prefix; unmappable prefixes default to `chore`. Never auto-overwrite an existing non-NULL value — only fill when currently NULL. The Human Gate (6c) always offers an override.
-17. **`mcp__dainos__create_task` does not yet expose `taskType`.** When creating via the MCP, follow up with a one-row SQL UPDATE to set `task_type` (see Step 5c.iv). When this gap closes in the MCP, drop the follow-up UPDATE.
+17. **`mcp__dainos__create_task` accepts `taskType` directly (MCP ≥ 0.14.0).** Pass it in the create call — no follow-up SQL UPDATE. It is also writable via `mutate({ resource: 'tasks', operation: 'update', data: { taskType } })`. The SQL fallback (Step 5c.iv / Step 7) is only for when the MCP is unavailable.
 18. **Capture-first: create, don't skip.** Never end a session with trackable work unrecorded in DainOS. When no task matches, the DEFAULT is to create one, climbing the ladder (task → milestone → project) only as far as needed to give the work a home. Skipping task linking is reserved for two cases: Step 4 could not resolve a product, or the session genuinely shipped nothing trackable (a throwaway spike). It is never the fallback for "I couldn't find a matching task". This holds in auto mode too — auto-create with inferred values and log the created chain in the Step 9 report for audit.
 19. **Never fabricate a commit SHA.** Always use the full 40-character SHA from git. The changelog is keyed on `(project, commit_sha)` and supports only `list`/`update` (no `delete`), so a placeholder or padded SHA leaves an un-removable bad row.
