@@ -41,7 +41,7 @@ Always prefer the lowest rung that fits — creating a project is the rare top o
 | 5c. Task matching | AskUserQuestion multiSelect from candidates | Auto-select tasks matched by explicit commit refs in subjects. Else if a single recent open task assigned to the operator clearly fits the work's domain, select it. **If nothing matches, do NOT skip — create a task (next row).** |
 | 5c. Create new task / climb the ladder | Interactive title/project/milestone flow | **Auto-create is the NORM when nothing matched.** Infer the title from the branch slug + dominant commit summary, and the type from the dominant conventional-commit prefix. Resolve the project: reuse the single/best-fit existing project under the product; if the product has none, create one named after the product or work theme. Resolve the milestone: reuse an open/best-fit milestone; if the project has none, create one (name from the work theme, e.g. the branch slug or "<Month> <Year>"). Then create the task under that milestone. Log the full created chain (project/milestone/task ids + inferred fields) in the Step 9 report. Only skip task creation entirely if Step 4 could not resolve a product. |
 | 6c. Human gate review | Per-task AskUserQuestion with full field block | Apply all proposals as-is. Log the full proposed block (including any created project/milestone) to the session summary so the operator can audit post-hoc. |
-| 7.5c. PR review scoring | AskUserQuestion per finding batch | Skip entirely. Findings remain unscored for the next interactive session. |
+| 7.5c. PR review scoring | AskUserQuestion per finding batch | Auto-score each unscored finding from session context (see 7.5c-auto): `useful` if it was correct/actionable (especially if the session acted on it), `noise` if technically correct but low-value or out-of-scope, `wrong` if factually incorrect or a misread. Note each verdict, prefixed `[auto]`. Leave a finding unscored ONLY when the session genuinely lacks the context to judge it. |
 | 7.6. KB learnings | Identify and log candidates | Still runs. KB entries are non-destructive and do not need confirmation. |
 | 8a. Session context | AskUserQuestion to confirm | Write without confirmation. |
 
@@ -688,6 +688,20 @@ If there are more than 4 unscored findings, complete the first batch, then ask:
 
 If "Skip the rest" → leave them unscored; they'll surface again on the next wrap-up.
 
+### 7.5c-auto. Auto-mode scoring (no prompts)
+
+In auto mode, do NOT prompt. Score each unscored finding yourself from the session's own context. You just did the work the finding refers to, so you can judge it:
+
+- `useful`: the finding was correct and worth acting on. If the session actually changed code in response to it, that is strong evidence for `useful`.
+- `noise`: technically correct but low value, or pointed at something out of scope or deliberately deferred.
+- `wrong`: factually incorrect, based on a misreading, or describes behaviour the code does not have (e.g. you verified the opposite).
+
+Write the verdict via 7.5d with a `notes` value prefixed `[auto] ` and a one-line rationale (e.g. `[auto] fixed in <sha>: route now maps 403/404`, or `[auto] false positive, the trigger it claims is missing exists and was verified`). The `[auto]` prefix keeps agent-judged scores auditable and separable from human scores when tuning the reviewer.
+
+**Bias guard.** You are effectively scoring a review of your own work, so do not reflexively mark findings you disagree with as `wrong`. Use `wrong` only with concrete evidence the finding is factually mistaken (a query result, a file you read, a passing test). A finding that is a matter of taste, or a scope call you chose not to address, is `noise`, not `wrong`.
+
+**When you cannot judge** (the finding is on code the session did not touch, or needs product context you do not have), leave it unscored, do NOT guess. It resurfaces next session. This is the only auto-mode skip, and it is per-finding, not the whole step.
+
 ### 7.5d. Write verdicts
 
 For each finding the operator gave a real verdict to (NOT `Skip`):
@@ -922,7 +936,7 @@ Written to DainOS. Session: "<session_name>" (id: <uuid>)
 11. `.worktrees/` directory is always untracked. Ignore it.
 12. If `~/.dain-os/wrap-up.json` is missing on a fresh machine, the operator-identity setup runs once before any wrap-up writes.
 13. **PR review feedback (Step 7.5) never prompts when there are zero unscored findings.** Don't add friction to wrap-ups that didn't touch a reviewed PR.
-14. **Skip = don't write a row.** A `pr_review_finding_feedback` row with a real verdict is a commitment. If the operator picks `Skip`, leave the finding unscored so it resurfaces next session.
+14. **Skip = don't write a row.** A `pr_review_finding_feedback` row with a real verdict is a commitment. In interactive mode, if the operator picks `Skip`, leave the finding unscored so it resurfaces next session. In auto mode the agent scores findings itself from session context (Step 7.5c-auto), leaving a finding unscored only when it genuinely cannot judge it.
 15. **DainOS MCP is the default path.** The fallback table at the top of this skill lists only two exceptions where Supabase is still required: Step 5b's cross-product candidate task query, and Step 7's transactional all-or-nothing task UPDATE batch. Everywhere else, use the MCP — no Supabase token needed.
 16. **`task_type` is one of `feat | fix | chore | refactor | docs | test`.** Required on every new task (Step 5c.i). Inferred from the dominant conventional-commit prefix; unmappable prefixes default to `chore`. Never auto-overwrite an existing non-NULL value — only fill when currently NULL. The Human Gate (6c) always offers an override.
 17. **`mcp__dainos__create_task` accepts `taskType` directly (MCP ≥ 0.14.0).** Pass it in the create call — no follow-up SQL UPDATE. It is also writable via `mutate({ resource: 'tasks', operation: 'update', data: { taskType } })`. The SQL fallback (Step 5c.iv / Step 7) is only for when the MCP is unavailable.
