@@ -27,6 +27,13 @@ grep -rn ': any\|as any\|<any>' --include="*.ts" --include="*.tsx" <files>
 - No `as` type assertions unless absolutely necessary (with comment explaining why)
 - Proper generics on React Query hooks, API calls, etc.
 
+#### Type-level checks do NOT catch tightened runtime constraints (WARN/BLOCK)
+
+A `satisfies SomeType` annotation or `const x: SomeType = result.data` only proves the SHAPE matches the TS type — it does NOT prove the value satisfies a Zod schema's runtime constraints (regex, min/max, enum membership, operand counts). When a value is produced in one place (LLM output, a hand-mirrored schema, a client builder) and validated by a stricter canonical schema elsewhere, the type check passes while the runtime validation 400s.
+
+- **BLOCK** when a hand-mirrored / LLM-output schema is looser than the canonical schema it must satisfy (e.g. canonical key regex is `/^[a-z0-9_]+$/` snake_case but the mirror has no regex and the producer emits kebab-case). Require the mirror to copy the canonical runtime constraints, with a drift-guard test asserting they match.
+Canonical failure: the Otto forms-draft route mirrored FormDefinition as a local Zod schema without the snake_case key regex; Otto emitted kebab keys that passed `satisfies FormDefinition` but 400'd on every autosave against the canonical draft schema. Caught only after build.
+
 ### Error Handling
 
 - All async operations have error handling (try/catch or .catch())
@@ -63,6 +70,20 @@ For each match:
 
 Canonical failure: portal Phase 1's `verifyMagicLinkInternal` used `UPDATE portal_users ...` against a model mapped to `@@map("users") @@schema("portal")`. Caught only during E2E because unit tests mocked Prisma. Must be caught at review time.
 
+#### Tenant ALS context on unauthenticated routes (BLOCK)
+
+`prismaWithTenant` and any service calling `requireTenant()`/`requireTenantId()` read the tenant id from AsyncLocalStorage, which is established by `tenantMiddleware` (authed) or `portalAuthenticate` (portal). **Unauthenticated routes (public share links, webhooks, magic-link surfaces) have NO ALS context.** A service/executor invoked from such a route throws `TenantContextError` — and if that throw is caught by a fallback path (e.g. "fall back to review"), the failure is SILENT: the route 2xxs but the downstream write never happened.
+
+```bash
+# Find tenant-scoped service / executor calls in unauthenticated route handlers
+grep -rn "MappingRegistry\.execute\|requireTenant\|prismaWithTenant" --include="*.ts" <public-or-webhook-route-files>
+```
+
+- **BLOCK** when an unauthenticated route invokes a `prismaWithTenant`/`requireTenant`-dependent service WITHOUT first establishing context via `tenantStorage.run({ tenantId, ... }, () => ...)` using a tenant id resolved from the request (e.g. the form/record looked up by public slug/token).
+- Also verify the catch path around such calls does not swallow `TenantContextError` into a success response.
+
+Canonical failure: the Form Builder public auto-accept ran `MappingRegistry.execute` with no ALS wrap; the CRM-enquiry executor's `requireTenant()` threw, was caught by fallback-to-review, and the enquiry was silently never created. Hit twice (public + nearly portal). Caught only by the final whole-feature panel + live E2E.
+
 #### Cross-domain write access-level guards (BLOCK on privilege escalation)
 
 The `prismaWithTenant` tenant extension scopes `tenant_id` only. It does NOT enforce `project_access`, `role`, or any other per-user authorization. Any write (`update`, `updateMany`, `upsert`, `delete`, `deleteMany`) through `prismaWithTenant` against a model owned by a DIFFERENT domain than the caller needs an explicit access-level check BEFORE the write.
@@ -80,6 +101,14 @@ For each match:
 
 Canonical failure: portal Phase 1's action queue `task_assigned` handler had a fallback that called `prismaWithTenant.tasks.update({ where: { id } })` when the pending-action path returned 0 rows. A portal user could mark ANY task in their tenant complete, not just tasks they had access to. Greptile caught it as P1 — should have been caught at review time.
 
+### Web↔API contract (BLOCK on unmapped fields)
+
+When a web domain consumes an API endpoint, the response shape (snake_case from Prisma/serialisers) must be mapped to the camelCase the UI reads. An unmapped field is `undefined` at runtime with NO type error and NO test failure if the hook/service tests mock camelCase fixtures.
+
+- **BLOCK** when a web service/hook added this round reads a field the API returns in snake_case without a mapper (snake→camel) — or sends camelCase to a `.strict()` snake_case request schema (silent 400 / strip).
+- Require a contract test (parse the actual API response/request shapes, assert key sets align) when a web domain first consumes a new API surface.
+Canonical failure: the Form Builder camelCase↔snake_case break recurred 3× (forms, submissions, public) — every time mocked unit tests stayed green while the live call returned `undefined`/400.
+
 ### Test Coverage
 
 For each new source file (`.ts` or `.tsx`, excluding test/story files), check that a matching test file exists:
@@ -90,6 +119,7 @@ Use Glob to find new source files, then Glob for each expected test file. Report
 
 - Every new source file has a corresponding test file
 - Tests actually test meaningful behaviour (not just "renders without crashing")
+- **Mock-blind seams:** when a test mocks the very dependency whose integration is the point (the registry/executor it dispatches, the FormData it builds, the HTTP shape it sends), flag it — the seam is unverified. Prefer one integration test that asserts the real wire shape (request body / FormData entries / cross-module call) over a mock that echoes the expected result.
 
 ### Code Quality
 
@@ -164,6 +194,10 @@ For each dialog/sheet/panel component created:
 
 For each hook that exposes mutation methods (create, update, delete):
 - **BLOCK** if the consuming component imports the hook but only destructures query data, ignoring the mutation methods it was built to provide
+
+**Stateful-widget → submit collection (the file-upload class):** when a field/widget holds its real value in local component state (file inputs, rich editors, custom pickers) and a submit handler elsewhere must collect it across components, trace the FULL path: widget state → a parent-visible registry/ref/RHF value → the submit handler reads it → it reaches the request body in the shape the server parses. Unit tests that call the handler directly pass while the wire path is broken.
+- **BLOCK** if a stateful widget's value has no path out to the submit handler (e.g. files trapped in `useState` with no `onChange`/registry), or the client sends a shape the server doesn't parse (e.g. JSON where the server expects multipart, or a multipart `answers` string the server never `JSON.parse`s).
+Canonical failure: the Form Builder `FileUploadField` held `File[]` in local state with no collector; all four submit surfaces dropped uploads while unit tests (which mocked the handler) passed. Caught only by live E2E.
 
 **The test:** After reading the parent, can you trace the click path from trigger → state change → component renders → data flows → user sees result? If any link is broken, it's a BLOCK.
 

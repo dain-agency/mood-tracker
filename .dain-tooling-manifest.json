@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "installed_at": "2026-05-13T11:50:57.748Z",
-  "last_upgrade_at": "2026-06-08T09:41:08.370Z",
-  "library_snapshot_date": "2026-06-08",
+  "last_upgrade_at": "2026-06-09T09:13:25.411Z",
+  "library_snapshot_date": "2026-06-09",
   "tooling_version": "0.2.1",
   "project": {
     "name": "mood-tracker",
@@ -81,8 +81,8 @@
     {
       "slug": "agent-ship-quality-reviewer",
       "target_path": ".claude/agents/ship-quality-reviewer.md",
-      "library_version": 2,
-      "installed_sha": "d1e9672107cf360744603705160a2928ec189ae65a8ccd4a81ddec9a0d897fa3",
+      "library_version": 3,
+      "installed_sha": "aca7e313be26f315457f930458123dc94b7c8aa67840e0ae900d7c575d13ca3a",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
@@ -217,8 +217,8 @@
     {
       "slug": "cmd-new-feature",
       "target_path": ".claude/commands/new-feature.md",
-      "library_version": 1,
-      "installed_sha": "c567d6e01d82b9f75586931c1279c9475773fd1573e9c007d4f43383ef6ca4c8",
+      "library_version": 2,
+      "installed_sha": "b5ae780c8be13510c8c84c15e309173739cc6d9f6e672cd11fd4b31cc36d9bc2",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
@@ -273,8 +273,8 @@
     {
       "slug": "cmd-ship",
       "target_path": ".claude/commands/ship.md",
-      "library_version": 8,
-      "installed_sha": "9ae7b48a298767657c515e7dd79c00c27d96ce9cd0c7255430b77d69e430e2c0",
+      "library_version": 10,
+      "installed_sha": "03927f6864be949beb56dc505f51c599f9c8f80f4315d2bb7f9c74b8ec63bafb",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.734Z"
     },
@@ -297,8 +297,8 @@
     {
       "slug": "cmd-wrap-up",
       "target_path": ".claude/commands/wrap-up.md",
-      "library_version": 16,
-      "installed_sha": "97b20930294204939d7e283da8faeac2faf19a1a07455909877f6f271051c475",
+      "library_version": 19,
+      "installed_sha": "1137529c22a93963a855fba33ed0822c81026d7fd1d920609c480409056d081d",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.734Z"
     },
@@ -753,8 +753,8 @@
     {
       "slug": "skill-ship-architect",
       "target_path": ".claude/agents/ship-architect.md",
-      "library_version": 3,
-      "installed_sha": "c9fec18975b597e66d2cf2749d8bc2bbbb11bd0d04e3857ace0efca7c9374e9a",
+      "library_version": 4,
+      "installed_sha": "9db5318fdb209558b55c4e38e307f272a840ecbdacd0c1f296b51bd281dbd712",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
@@ -777,8 +777,8 @@
     {
       "slug": "skill-ship-e2e",
       "target_path": ".claude/agents/ship-e2e.md",
-      "library_version": 2,
-      "installed_sha": "f5cb9918dd364afcfc14a3c44c1daae5e54027e4338fce0d82aa5eaa6caaa937",
+      "library_version": 3,
+      "installed_sha": "53ae686004a75d81012b6e3939dd56d38c10058777eb9f43c87439e6ad3721b4",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
@@ -801,16 +801,16 @@
     {
       "slug": "skill-ship-pr",
       "target_path": ".claude/agents/ship-pr.md",
-      "library_version": 2,
-      "installed_sha": "6ece3e5d723ffd9f06e5efb860d8aa22b15c7d3277274ee2b2640ce2e23132ce",
+      "library_version": 3,
+      "installed_sha": "e1cc5dba39ef5c07505df62f9122a1d2c42eb214afe469b4fa6e41218d1b3433",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
     {
       "slug": "skill-ship-preflight",
       "target_path": ".claude/agents/ship-preflight.md",
-      "library_version": 3,
-      "installed_sha": "613b2102c8c9a46378301a3946e3e04f1ec09fe6930934efc0d260cdad115384",
+      "library_version": 4,
+      "installed_sha": "434407662ace1e310de4fb8cbb5910e4ad7bcfb80d17991dd40765d54c3e2361",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
     },

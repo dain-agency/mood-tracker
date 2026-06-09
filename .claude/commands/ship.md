@@ -15,7 +15,7 @@ Agent Swarm Feature Factory — from idea to merged PR via six layers of context
 ## The Pipeline
 
 ```
-0.   Initialise      → Route check, project config, progress file
+0.   Initialise      → Route check, project config, progress file, sprint context
 0.5. Environment Gate → Validate dev servers + tsc + env vars BEFORE any expensive work
 1.   Discovery       → WHO / WHY / WHERE / WHEN / Journeys     [SKILL: ship-discovery — INLINE in main thread]
 2.   HUMAN GATE      → "Does this describe the people and context accurately?"
@@ -89,6 +89,46 @@ Search for the project config (the architect's blueprint):
 3. If found → record path in progress file, pass to Discovery and Architect
 4. If not found → log in progress file: "No project config found — Discovery and Architect will work from scratch"
 
+### Sprint Context
+
+After locating the project config (or determining it is absent), identify the active sprint for the primary project:
+
+```
+mcp__dainos__query({ resource: 'sprints', filters: { status: 'active' }, limit: 1 })
+```
+
+Record in the progress file under a `## Sprint Context` heading:
+```markdown
+## Sprint Context
+- active_sprint_id: <uuid or null>
+- active_sprint_name: <name or null>
+```
+
+**If an active sprint is found**, output a one-line sprint summary to the user and ask where this feature belongs:
+
+```
+Sprint: "[sprint_name]" — [completed_story_points]/[total_story_points]pt complete, ends [end_date].
+Does this feature belong in this sprint, or should it be queued for the next one?
+```
+
+Use `AskUserQuestion`:
+- Question: `Where should this feature's tasks land?`
+- Options:
+  - `Add to active sprint "[sprint_name]"` — sets `active_sprint_id` in the progress file and assigns all created tasks to this sprint in Phases 5 and 6
+  - `Queue for next sprint` — sets `active_sprint_id = null` in the progress file; sprint fields are omitted from all task creation throughout the pipeline
+
+If the user chooses `Queue for next sprint`, update the `## Sprint Context` section of the progress file:
+```markdown
+## Sprint Context
+- active_sprint_id: null
+- active_sprint_name: null (user chose to queue for next sprint)
+```
+And skip all sprint assignment in Phases 5 and 6.
+
+**If no active sprint exists**, skip the prompt entirely and proceed.
+
+This context flows into Phases 5 and 6. If no active sprint exists, `active_sprint_id` is null and sprint fields are omitted from task creation.
+
 ### Create progress file
 
 Create `docs/plans/YYYY-MM-DD-<feature-slug>-progress.md`:
@@ -106,6 +146,10 @@ Create `docs/plans/YYYY-MM-DD-<feature-slug>-progress.md`:
 - **Project Config:** (TBD — path to project-config.json)
 - **Feature Brief:** (TBD)
 - **Task Manifest:** (TBD)
+
+## Sprint Context
+- active_sprint_id: (TBD — set in Phase 0)
+- active_sprint_name: (TBD — set in Phase 0)
 
 ## Progress
 
@@ -288,6 +332,16 @@ Ask: "Does the technical approach serve the human context? If wireframes were ge
 
 Dispatch the `ship-plan-writer` agent with the Feature Brief path.
 
+### Sprint context for task manifest
+
+If `active_sprint_id` is set (from Phase 0), pass it in the dispatch prompt:
+
+```
+Active sprint: "[active_sprint_name]" (id: <active_sprint_id>) — include sprintId on all task manifest entries so feature tasks land on the sprint board immediately.
+```
+
+The plan-writer should include `"sprintId": "<active_sprint_id>"` on every task in the manifest.
+
 **Output:** Task Manifest at `docs/plans/YYYY-MM-DD-<feature>-tasks.json`
 
 Update progress file. **Tell user:** "Plan complete. Task manifest at `<path>`. Starting automated build."
@@ -313,6 +367,14 @@ Copy the Feature Brief and Task Manifest into the worktree's `docs/plans/`.
 ### Execute
 
 Dispatch the `ship-foreman` agent with the task manifest path and worktree path.
+
+### Sprint context for the Foreman
+
+If `active_sprint_id` is set (from Phase 0), include it in the Foreman dispatch prompt:
+
+```
+Active sprint: "[active_sprint_name]" (id: <active_sprint_id>) — pass sprintId: "<active_sprint_id>" to every create_task call. Feature tasks must land on the sprint board immediately.
+```
 
 The Foreman:
 1. Reads the task manifest
@@ -554,3 +616,4 @@ A reviewer that re-reads the full brief on every round adds Opus tokens to every
 5. **Track everything.** Progress file updated after every phase transition. **Phase Telemetry table is mandatory** — model + wall-clock + output size + interaction count for every phase.
 6. **E2E testing is NEVER optional.** Phase 8 must run with real browser automation. If Chrome is unavailable or dev servers won't start, STOP and run the boot-failure diagnostic — do not skip or defer to human review. Unit tests cannot replace browser verification. E2E has found real bugs in 100% of builds where it was initially skipped.
 7. **No fake interactivity.** If a phase is documented as interactive (Discovery, Retrospective), and `AskUserQuestion` is unavailable in the current execution context, STOP and surface the issue. Do NOT silently fall back to a non-interactive "speculation" mode that fakes the appearance of an interview.
+8. **Sprint context is set once in Phase 0.** Do not re-query the active sprint mid-build. If the sprint changes while /ship is running, it is captured on the next /wrap-up, not mid-pipeline.

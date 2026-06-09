@@ -78,7 +78,7 @@ For every read and write, prefer this order. Skip to the next tier only if the h
 | 5c. Milestone resolution | `query({ resource: 'milestones', parentId: projectId })` | Call before `create_task` whenever `projectId` is set. Orphan tasks (project with milestones but no `milestoneId`) clutter the project view. |
 | 5c. Create milestone | `mutate({ resource: 'milestones', operation: 'create', parentId: projectId, data })` | `parentId` is the projectId. `data` takes `name` (required), `startDate?`, `dueDate?`, `status?`. Reuse the returned id on `create_task`. |
 | 5c. Create new task | `create_task` | **Named tool.** Server fills `priority_score` default; takes `title, projectId, milestoneId, status, taskType, assigneeId, reporterId, startDate` (and more — see `describe_schema`). ALWAYS pass `milestoneId` when the project has milestones — see Step 5c.iii. Pass `taskType` directly (MCP ≥ 0.14.0) — no follow-up SQL UPDATE needed. |
-| 6/7. Task UPDATE | `mutate({ resource: 'tasks', operation: 'update', id, data })` | Exposes `descriptionClient`, `descriptionJson`, `descriptionClientJson`, `actualHoursDelta` (additive), `completedAt`, `completedBy`, `taskType`. Use `complete_task` (named tool) only for the status state-machine walk. **One call per task — no transactional batch**. If you need all-or-nothing semantics across multiple tasks, drop to SQL with `BEGIN; ... COMMIT;` instead. |
+| 6/7. Task UPDATE | `mutate({ resource: 'tasks', operation: 'update', id, data })` | Exposes `descriptionClient`, `descriptionJson`, `descriptionClientJson`, `actualHoursDelta` (additive), `completedAt`, `completedBy`, plus `status`, `startDate`, etc. Use `complete_task` (named tool) only for the status state-machine walk when a task moves to `done`. **One call per task — no transactional batch**. If you need all-or-nothing semantics across multiple tasks, drop to SQL with `BEGIN; ... COMMIT;` instead. |
 | 7.5. PR review feedback | `query({ resource: 'pr_review_findings', filters: { repo, prNumber, scoredBy } })` + `score_pr_finding({ findingId, verdict, scoredBy, notes?, reviewerVersion? })` | `score_pr_finding` is a named tool. Verdict enum: `useful \| noise \| wrong`. 409 on duplicate — don't retry. |
 | 8. session_context INSERT | `mutate({ resource: 'session_context', operation: 'create', data })` | `data` uses snake_case fields including `product_id`, `task_ids`, `operator_iam_user_id` |
 
@@ -120,6 +120,30 @@ git worktree list
 ```
 
 Process each worktree (including the main working tree) in steps 2-4.
+
+---
+
+## Step 1.5: Sprint Context
+
+For the primary product resolved in Step 4, identify any active sprint **before** task matching. Run this query after Step 4 resolves a product (or immediately if the product/project is already known):
+
+```
+mcp__dainos__query({ resource: 'sprints', filters: { status: 'active' }, limit: 1 })
+```
+
+Store the result as:
+- `active_sprint_id` — the sprint UUID (null if no active sprint)
+- `active_sprint_name` — the sprint name (null if no active sprint)
+
+Sprint context flows into three later steps:
+
+| Step | Sprint use |
+|---|---|
+| 5c.v | Flag tasks without a sprint assignment; always assign to active sprint and capture reason (planned vs reactive) as reporting metadata |
+| 6b | Propose `sprint_id = active_sprint_id` for tasks that currently have none |
+| 6c / 9 | Surface Sprint field in the human-gate block and list unplanned sprint additions in the summary |
+
+**If `active_sprint_id` is null, skip all sprint prompts and proposals.** Do not invent a sprint or ask the user about sprints when none is active.
 
 ---
 
@@ -357,6 +381,7 @@ recent_open AS (
 )
 SELECT t.id, t.task_number, t.title, t.status, t.assignee_id, t.start_date,
        t.actual_hours, t.project_id, pj.name AS project_name,
+       t.sprint_id,
        (t.id IN (SELECT id FROM explicit_refs)) AS matched_explicitly
 FROM projects.tasks t
 LEFT JOIN projects.projects pj ON pj.id = t.project_id
@@ -445,6 +470,49 @@ Prefer `mcp__dainos__create_task({ title, projectId, milestoneId, status, taskTy
 
 **Setting `task_type`:** as of MCP server 0.14.0, `mcp__dainos__create_task` accepts `taskType` directly — just include it in the create call. Valid enum values: `feat`, `fix`, `chore`, `refactor`, `docs`, `test`. No follow-up SQL UPDATE is needed.
 
+#### 5c.v. Sprint context check
+
+After `linked_task_ids` is finalised (5c.i–5c.iv), check each task's current `sprint_id` against `active_sprint_id` (from Step 1.5). For existing tasks, read `sprint_id` from the query result in 5b; for newly created tasks, `sprint_id` will be null.
+
+**For each task in `linked_task_ids`:**
+
+| Condition | Action |
+|---|---|
+| `active_sprint_id` is null | No sprint actions for any task. Skip this step entirely. |
+| Task `sprint_id` == `active_sprint_id` | Already on the active sprint. No action needed. |
+| Task `sprint_id` is not null AND != `active_sprint_id` | Task is on a different sprint. Note in Step 9 summary ("Task [X] is on sprint [Y], not the active sprint — not changed"). Do NOT alter `sprint_id`. |
+| Task `sprint_id` is null (mid-sprint ADD) | Task has no sprint but active sprint exists. **Always assign `active_sprint_id`** — all work done in the sprint window belongs on the sprint. Ask WHY (see below) to capture the reason as sprint reporting metadata. |
+| Task `sprint_id` == `active_sprint_id` AND user proposes clearing it (mid-sprint REMOVE) | Task is being removed from the active sprint. Ask WHY (see below). |
+
+**Mid-sprint ADD — ask via `AskUserQuestion`:**
+
+The task will be assigned to the active sprint regardless. The reason is sprint reporting metadata — it answers "was this planned or reactive?" so sprint reviews can distinguish committed scope from unplanned work.
+
+- Question: `[task_number] "<title>" was worked on this sprint but has no sprint assignment. Why was it not planned?`
+- Options:
+  - `Reactive / unplanned` — work that emerged during the sprint (hotfix, debugging, discovered blocker) and was not on the sprint board
+  - `Priority shift` — a business priority changed and this work moved up mid-sprint
+  - `Scope clarification` — this task was always in-scope but not yet tracked on the sprint board
+  - `Unblocked dependency` — a blocker was resolved and this task became actionable mid-sprint
+  - `Other` — free-text reason
+
+Log the chosen reason (including any free-text for `Other`) to `decisions_made` in the session context row.
+
+**A blank or skipped reason is a BLOCK.** Do not proceed to Step 6 until a reason is captured for every mid-sprint add. This is Rule 21.
+
+**Mid-sprint REMOVE — ask via `AskUserQuestion`:**
+
+- Question: `[task_number] "<title>" is currently on sprint "[active_sprint_name]". Reason for removing it mid-sprint?`
+- Options:
+  - `Descoped` — the work is no longer in scope for this sprint
+  - `Blocked` — a blocker has emerged and the task cannot progress this sprint
+  - `Moved to next sprint` — the work is deferred to the next sprint by plan
+  - `Other` — free-text reason
+
+Log the chosen reason to `decisions_made` in the session context row.
+
+**A blank or skipped reason is a BLOCK.** Do not proceed to Step 6 until a reason is captured for every mid-sprint remove. This is Rule 21.
+
 ---
 
 ## Step 6: Propose Field Updates & Confirm
@@ -489,6 +557,7 @@ For each task, propose:
 | `assignee_id` | Never auto-change (D5). |
 | `due_date` | Never auto-set (D5). |
 | `task_type` | Only set if currently NULL → infer from the dominant conventional-commit prefix of commits attributed to this task. Mapping: `feat→feat, fix→fix, chore→chore, refactor→refactor, docs→docs, test→test`. Prefixes with no enum equivalent (`perf`, `ci`, `build`, `revert`, `style`) → default to `chore`. Never overwrite a non-NULL value. The Human Gate (6c) is the operator's chance to override or skip. |
+| `sprint_id` | Only when `active_sprint_id` is set (Step 1.5) and the task currently has no sprint (Step 5c.v). Propose `active_sprint_id`. Reason for mid-sprint add is captured in Step 5c.v — do not re-prompt here. |
 | `updated_at` | NOW() (handled by `@updatedAt` if present, else explicit). |
 
 **Plate paragraph node shape:** every node is `{ "type": "p", "children": [{ "text": "<content>" }] }`. This matches the codebase pattern in `descriptionToPlateValue` (`use-enrichment-commit.ts`). Stick to `p` nodes; do NOT introduce `h2`/`h3` types unless you've verified they render in Task Detail's Plate config.
@@ -516,6 +585,8 @@ About to write to projects.tasks:
   Start date    <current> → <proposed>
   Completed at  <proposed_NOW_or_unchanged>
   Hours         actual_hours += <allocated_h> (session minutes <duration> / linked tasks <n>)
+  Sprint        <current sprint_name or None> → <active_sprint_name or unchanged>
+  Sprint reason <reason captured in 5c.v, if this is a mid-sprint add>
 
   Internal description (description / description_json)
   ----
@@ -595,6 +666,11 @@ SET description = COALESCE(description, '') || E'\n\nSession <YYYY-MM-DD>\n\n<in
     completed_at = CASE WHEN '<proposed_status>' = 'done' THEN NOW() ELSE completed_at END,
     completed_by = CASE WHEN '<proposed_status>' = 'done' THEN '<operator_iam_user_id>'::uuid ELSE completed_by END,
     actual_hours = actual_hours + <allocated_hours>,
+    sprint_id = CASE
+      WHEN '<proposed_sprint_id>' IS NOT NULL AND '<proposed_sprint_id>' != ''
+        THEN '<proposed_sprint_id>'::uuid
+      ELSE sprint_id
+    END,
     updated_at = NOW()
 WHERE id = '<task_id>'
   AND tenant_id = '<tenant_id>';
@@ -900,10 +976,10 @@ Present a concise summary:
 | Task | [<task_number>] <title> | <uuid> | new this run / reused |
 
 ## Tasks Updated
-| Task | Status | Hours | Internal Δ | Client Δ |
-|------|--------|-------|------------|----------|
-| [TASK-1] Title | in_progress → done | +1.5h | appended | set |
-| [TASK-2] Title | in_progress | +1.5h | appended | appended |
+| Task | Status | Hours | Sprint | Internal Δ | Client Δ |
+|------|--------|-------|--------|------------|----------|
+| [TASK-1] Title | in_progress → done | +1.5h | added (reactive/unplanned) | appended | set |
+| [TASK-2] Title | in_progress | +1.5h | planned | appended | appended |
 
 ## PR Review Feedback (DainOS reviewer)
 | PR | Findings scored | useful / noise / wrong | Skipped |
@@ -942,3 +1018,6 @@ Written to DainOS. Session: "<session_name>" (id: <uuid>)
 17. **`mcp__dainos__create_task` accepts `taskType` directly (MCP ≥ 0.14.0).** Pass it in the create call — no follow-up SQL UPDATE. It is also writable via `mutate({ resource: 'tasks', operation: 'update', data: { taskType } })`. The SQL fallback (Step 5c.iv / Step 7) is only for when the MCP is unavailable.
 18. **Capture-first: create, don't skip.** Never end a session with trackable work unrecorded in DainOS. When no task matches, the DEFAULT is to create one, climbing the ladder (task → milestone → project) only as far as needed to give the work a home. Skipping task linking is reserved for two cases: Step 4 could not resolve a product, or the session genuinely shipped nothing trackable (a throwaway spike). It is never the fallback for "I couldn't find a matching task". This holds in auto mode too — auto-create with inferred values and log the created chain in the Step 9 report for audit.
 19. **Never fabricate a commit SHA.** Always use the full 40-character SHA from git. The changelog is keyed on `(project, commit_sha)` and supports only `list`/`update` (no `delete`), so a placeholder or padded SHA leaves an un-removable bad row.
+20. **Sprint context is queried once at Step 1.5, not per-task.** A single `query({ resource: 'sprints', filters: { status: 'active' }, limit: 1 })` covers all tasks in the session. Caching it avoids N-round-trips for sessions with many tasks.
+21. **Mid-sprint add and remove reasons are mandatory, not optional. The reason is annotation, not a gate.** All tasks worked on during the sprint window are always assigned to the active sprint — the reason records WHY (planned vs. reactive) for sprint reporting. If a task is being assigned to the active sprint for the first time this session (mid-sprint add), or removed from it (mid-sprint remove), the reason must be captured and logged to `decisions_made` (Step 5c.v) before proceeding to Step 6. A blank reason is a BLOCK, but "the work was unplanned" is a valid reason that still results in the sprint assignment being made.
+22. **Out-of-sprint tasks are flagged, not force-fixed.** If `active_sprint_id` is null and a task has no sprint_id, it is simply unsprinted work. Note it in the Step 9 summary without creating a sprint or forcing assignment.

@@ -143,6 +143,24 @@ If the diff is empty, this check is N/A. If it's non-empty, the guard MUST exit 
 
 If the project lacks `scripts/check-ai-route-contract.sh`, mark this check N/A — the guard is project-specific (currently dain-os).
 
+### 11. Infrastructure Deploy-Dependencies (BLOCK if unsurfaced)
+
+A feature can be fully type-safe, tested, and lint-clean yet still be **non-functional in prod** because it depends on infrastructure that no migration or code change provisions: Supabase Storage buckets, external service config (Resend/Anthropic/Xero keys), cron registration, KV/secret entries. These are invisible to every static check and often "work in dev" because someone created the resource by hand. Surface them so they become explicit deploy steps in the PR.
+
+```bash
+# Storage buckets the feature reads/writes
+cd <worktree> && git diff --name-only main...HEAD -- '*.ts' | xargs grep -nE "storage\.from\(['\"]|bucket['\"]?\s*[:=]\s*['\"]|BUCKET[_A-Z]*\s*=" 2>/dev/null
+# Env vars / external clients newly referenced
+cd <worktree> && git diff main...HEAD -- '*.ts' | grep -E '^\+' | grep -nE "process\.env\.[A-Z_]+|new (Resend|Anthropic)\(" 2>/dev/null
+```
+
+For each referenced bucket / env var / external resource:
+- Confirm it is EITHER provisioned by something in the diff (migration, config commit) OR explicitly listed as a deploy requirement (PR body / progress file / a docs note).
+- **BLOCK** (or WARN, if a known out-of-band convention applies) when a NEW bucket/resource is referenced with no provisioning and no documented deploy step. dain-os provisions storage buckets out-of-band per environment (like `task-attachments`, `signed-contracts`, `form-uploads`) — these MUST be called out as a "create bucket X in prod" step, not assumed.
+- If the dev environment has the resource but prod won't (and nothing documents it), that is the failure mode — flag it.
+
+**Why this matters:** the Form Builder's `form-uploads` bucket existed nowhere in code or migrations; file persistence failed with "Bucket not found" but the submission still returned 201 (non-fatal), so uploads silently dropped. No static check caught it — only live E2E did. Pre-flight should surface the deploy-dep before the build is presented for review.
+
 ### Credentials (canonical convention)
 
 Pre-flight checks above are static (TypeScript, tests, grep) and do NOT require browser login. However, if a future Pre-flight check adds a smoke-test that boots the dev server and logs in (e.g. a hosted health-check, a login-required route reachability probe):
@@ -174,6 +192,12 @@ This is the canonical convention across the entire ship pipeline (Discovery, Arc
 | No `.only()` | PASS | |
 | Routes registered | PASS | |
 | Sidebar updated | N/A | No new pages |
+| FK action drift | PASS | |
+| AI route contract | N/A | No AI routes touched |
+| Infra deploy-deps | PASS | or: "BLOCK: bucket form-uploads not provisioned — add prod deploy step" |
+
+## Deploy Requirements
+(list any migrations, buckets, env vars, external resources the human must action for prod)
 
 ## Issues Found
 (only if FAIL — list each issue with file:line)
