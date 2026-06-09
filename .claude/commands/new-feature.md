@@ -7,6 +7,16 @@ argument-hint: [feature description]
 
 **STOP. Do not write code yet.**
 
+## Phase 0: Sprint Context
+
+Before planning, identify the active sprint for the current project (if any):
+
+```
+mcp__dainos__query({ resource: 'sprints', filters: { status: 'active' }, limit: 1 })
+```
+
+Store `active_sprint` (id + name, or null). Used in Phase 2 (Plan) and Phase 3 (Confirm).
+
 ## Phase 1: Understand
 
 ### Questions to Answer
@@ -15,6 +25,7 @@ argument-hint: [feature description]
 3. What data does it need?
 4. What existing code/patterns can be reused?
 5. Are there edge cases or error scenarios?
+6. Is there an active sprint? Does this work fit within its remaining capacity and goals, or should it be queued for the next sprint?
 
 Ask the user clarifying questions if anything is unclear.
 
@@ -23,7 +34,7 @@ Ask the user clarifying questions if anything is unclear.
 ### Files to Create/Modify
 
 | File | Type | Purpose |
-|------|------|--------|
+|------|------|---------|
 | `src/modules/[domain]/types/[Feature].types.ts` | Types | Data interfaces |
 | `src/modules/[domain]/services/[feature].service.ts` | Service | Business logic |
 | `src/modules/[domain]/hooks/use[Feature].ts` | Hook | Data fetching |
@@ -51,10 +62,10 @@ interface FeatureResponse {
 ### Component Tree
 ```
 FeaturePage
-\u251c\u2500\u2500 FeatureHeader
-\u251c\u2500\u2500 FeatureList
-\u2502   \u2514\u2500\u2500 FeatureCard (\u00d7n)
-\u2514\u2500\u2500 FeatureForm (modal?)
+├── FeatureHeader
+├── FeatureList
+│   └── FeatureCard (×n)
+└── FeatureForm (modal?)
 ```
 
 ### State Management
@@ -66,6 +77,11 @@ FeaturePage
 
 Present this plan and ask:
 > "Does this plan look correct? Any changes before I implement?"
+
+If `active_sprint` is set, also confirm:
+> "Should this feature be assigned to the active sprint **[sprint_name]**, or queued outside it?"
+
+Record the answer — pass `sprintId` to any `create_task` calls in the follow-up `/wrap-up`.
 
 ## Phase 4: Implementation Order
 
