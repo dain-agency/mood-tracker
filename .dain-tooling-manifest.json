@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "installed_at": "2026-05-13T11:50:57.748Z",
-  "last_upgrade_at": "2026-06-12T09:29:15.384Z",
-  "library_snapshot_date": "2026-06-12",
+  "last_upgrade_at": "2026-06-13T09:08:31.686Z",
+  "library_snapshot_date": "2026-06-13",
   "tooling_version": "0.2.3",
   "project": {
     "name": "mood-tracker",
@@ -233,8 +233,8 @@
     {
       "slug": "cmd-pr-feedback",
       "target_path": ".claude/commands/pr-feedback.md",
-      "library_version": 2,
-      "installed_sha": "036fef3c6384fcbd6ac22fb1f4da889b282a50484db6e825e90cda6c68adf6dd",
+      "library_version": 3,
+      "installed_sha": "9930224d62ed649cd037f14831a9e474f6b98ffaa4f7a022a95c2765ebdac63e",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
@@ -681,16 +681,16 @@
     {
       "slug": "skill-frontend-gotchas",
       "target_path": ".claude/skills/frontend-gotchas/SKILL.md",
-      "library_version": 1,
-      "installed_sha": "bdb1b5bc32ebb49792cc7085424cf7cf0cf87559e58bc47e80badc3c5cee4e3f",
+      "library_version": 2,
+      "installed_sha": "321d03ee5fce4d6e2d2fe4c76efbe522864f2ffe8f7396fd18c84b1441999b7d",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.745Z"
     },
     {
       "slug": "skill-gotchas",
       "target_path": ".claude/skills/gotchas/SKILL.md",
-      "library_version": 1,
-      "installed_sha": "a866791f97100ad8f89aab570906b4dafde9a3402bd00bd0d1b71b1be0064d82",
+      "library_version": 2,
+      "installed_sha": "c773aa9c426702b1312859a0d1cc95da343a93f8eadc9540e26a8273ca3cfc3e",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
