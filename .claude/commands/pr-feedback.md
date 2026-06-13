@@ -87,7 +87,7 @@ For each unaddressed Greptile comment:
 3. **Evaluate the suggestion:**
    - If it's a valid improvement (bug fix, type safety, missing error handling, security) -> apply it
    - If it's a style nit or subjective preference that doesn't match project conventions -> skip it, but note why
-   - If it includes a suggestion block -> apply the suggested diff directly unless it's incorrect
+   - **Never apply a reviewer bot's suggested patch verbatim.** The diagnosis is a lead, not a fix: re-derive the patch independently against the actual behaviour of the code (read the surrounding code, reproduce or verify the claimed defect), then write your own change. Bot patches routinely look plausible while being wrong -- the canonical example is the Form/aria-describedby near-miss, where the suggested patch compiled cleanly but would have regressed the accessible descriptions it claimed to fix. If your independently-derived fix happens to match the suggestion, fine; the derivation comes first.
 4. **Make the fix** using Edit tool
 5. **Reply to the comment inline** on the PR (see Reply Protocol below)
 6. **Track what was done** -- keep a running list of addressed vs skipped comments with reasons
@@ -165,7 +165,11 @@ Assess the **scope of changes** made in Step 3:
 4. If genuinely new comments exist -> repeat Step 3 and Step 4
 5. If no new comments -> proceed to Step 5
 
-**Safety limit:** Maximum 3 review cycles to avoid infinite loops.
+**Reviewer-loop cap (hard rules):**
+
+1. **Pass 1 is the only full review.** Every subsequent pass is scoped to the DELTA only -- the commits pushed since the previous pass. Never re-run a full review of the whole PR on pass 2+; findings on unchanged code from a later pass are re-flags, not new work.
+2. **Hard stop after 3 passes.** No fourth review cycle, ever. Whatever is still open after pass 3 goes to a human.
+3. **Every finding is scored `useful` / `noise` / `wrong` with a written reason** -- nothing leaves the loop unscored. Score inline as you address each finding, or at wrap-up via `score_pr_finding` (wrap-up Step 7.5); the written reason is what makes the verdict auditable when tuning the reviewer.
 
 **Bot-loop close-out (MANDATORY after cycle 2):** Some reviewer bots (e.g. dainos-reviewer, certain Greptile configurations) do NOT track resolution state across commits — they re-flag previously-fixed findings on every new push. After cycle 2, if a new cycle returns no NEW findings (only re-flags of already-addressed ones), post a single meta-comment closing further auto-cycles and stop triggering `@dainreview`/equivalent. Example body:
 
