@@ -9,7 +9,7 @@ argument-hint: [feature description]
 
 ## Phase 0: Sprint Context
 
-Before planning, identify the active sprint for the current project (if any):
+Before planning, identify the **single agency-wide active sprint** (if any). Dain runs one sprint across all projects, client-facing and internal — there is no per-project or per-client sprint, so the query is never filtered by `projectId`. See `rule-sprint-model`.
 
 ```
 mcp__dainos__query({ resource: 'sprints', filters: { status: 'active' }, limit: 1 })

@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "installed_at": "2026-05-13T11:50:57.748Z",
-  "last_upgrade_at": "2026-06-16T09:51:44.920Z",
-  "library_snapshot_date": "2026-06-16",
+  "last_upgrade_at": "2026-06-17T09:43:16.709Z",
+  "library_snapshot_date": "2026-06-17",
   "tooling_version": "0.2.3",
   "project": {
     "name": "mood-tracker",
@@ -217,8 +217,8 @@
     {
       "slug": "cmd-new-feature",
       "target_path": ".claude/commands/new-feature.md",
-      "library_version": 2,
-      "installed_sha": "b5ae780c8be13510c8c84c15e309173739cc6d9f6e672cd11fd4b31cc36d9bc2",
+      "library_version": 3,
+      "installed_sha": "96f9af146c9ebefcab4af64e29bd748aef90825c017edf787564caa9fe4539e7",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
@@ -273,8 +273,8 @@
     {
       "slug": "cmd-ship",
       "target_path": ".claude/commands/ship.md",
-      "library_version": 10,
-      "installed_sha": "03927f6864be949beb56dc505f51c599f9c8f80f4315d2bb7f9c74b8ec63bafb",
+      "library_version": 11,
+      "installed_sha": "1d956fe890c2b4b5102e78ac1356fa24e737d85496793dc1d5f699a46b218617",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.734Z"
     },
@@ -621,6 +621,14 @@
       "installed_sha": "725ed018835cbc5ad4b5977176ff03af4feba9fd11306c3576ef4710a3adfe39",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
+    },
+    {
+      "slug": "rule-sprint-model",
+      "target_path": ".claude/rules/sprint-model.md",
+      "library_version": 2,
+      "installed_sha": "e63223e0bd5c76f636195a00dedd3e3ea010721abaf71347be9f93098194743c",
+      "marker": "managed",
+      "installed_at": "2026-06-17T09:43:16.709Z"
     },
     {
       "slug": "rule-storybook-mcp-gate",
