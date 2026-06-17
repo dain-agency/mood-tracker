@@ -91,7 +91,7 @@ Search for the project config (the architect's blueprint):
 
 ### Sprint Context
 
-After locating the project config (or determining it is absent), identify the active sprint for the primary project:
+After locating the project config (or determining it is absent), identify the **single agency-wide active sprint**. Dain runs one sprint across all projects, client-facing and internal — it is not scoped to this feature's project, so the query is never filtered by `projectId`, and the sprint is never referred to as "[project]'s sprint". See `rule-sprint-model`.
 
 ```
 mcp__dainos__query({ resource: 'sprints', filters: { status: 'active' }, limit: 1 })
