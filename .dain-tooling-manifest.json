@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "installed_at": "2026-05-13T11:50:57.748Z",
-  "last_upgrade_at": "2026-06-17T09:43:16.709Z",
-  "library_snapshot_date": "2026-06-17",
+  "last_upgrade_at": "2026-06-18T09:34:55.411Z",
+  "library_snapshot_date": "2026-06-18",
   "tooling_version": "0.2.3",
   "project": {
     "name": "mood-tracker",
@@ -633,8 +633,8 @@
     {
       "slug": "rule-storybook-mcp-gate",
       "target_path": ".claude/rules/storybook-mcp-gate.md",
-      "library_version": 1,
-      "installed_sha": "a6a794ffd97a1bc49b41d07e598819da250f3a4671cfc7b3037391cd43e06148",
+      "library_version": 3,
+      "installed_sha": "db5a0bc64821111d983bf48526972e404a9e8da3a354817c95bb8c27e6c97d5d",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.744Z"
     },
