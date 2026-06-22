@@ -132,6 +132,8 @@ Smoke-test recipes for the dev server depend on your repo's proxy setup (Portles
 
 **Always confirm before removing.** Another session may be using the worktree, or there may be unpushed work the merge didn't capture.
 
+> For sweeping *many* stale worktrees/branches at once (not just the one you just merged), use `/worktree-gc` — it applies the same integration ladder across every worktree with a dry-run preview.
+
 ```bash
 SLUG=your-feature
 WT=.claude/worktrees/$SLUG
@@ -142,8 +144,18 @@ echo "=== Worktree: $WT ==="
 echo "Branch: $BRANCH"
 git -C "$WT" status --short
 echo ""
-echo "Merged into main?"
-git branch --merged main | grep -qE "^\s*${BRANCH}\s*$" && echo "YES" || echo "NO — bail out"
+# Integration check — squash-merge-safe. --merged is USELESS under squash-merge
+# (SHAs differ), so use the [gone]-upstream + gh-PR ladder instead.
+BASE=$(git rev-parse --verify --quiet refs/remotes/origin/develop >/dev/null && echo develop || echo main)
+git fetch --prune --quiet 2>/dev/null || true
+TRACK=$(git for-each-ref --format='%(upstream:track)' "refs/heads/$BRANCH" 2>/dev/null)
+if [ "$TRACK" = "[gone]" ]; then
+  echo "INTEGRATED (remote branch deleted after merge) — safe to remove"
+elif command -v gh >/dev/null 2>&1 && [ "$(gh pr view "$BRANCH" --json state --jq .state 2>/dev/null)" = "MERGED" ]; then
+  echo "INTEGRATED (gh: PR merged) — safe to remove"
+else
+  echo "NOT provably integrated into $BASE — bail out (keep on ambiguity)"
+fi
 echo ""
 echo "Dev server processes holding this directory?"
 pgrep -af "$WT" || echo "  (none)"
@@ -162,7 +174,8 @@ pgrep -f "$WT" | xargs -r kill -9   # only if anything survived SIGTERM
 # 3. Remove the worktree
 git worktree remove "$WT"
 
-# 4. Delete the local branch (already merged — safe)
+# 4. Delete the local branch (safe if provably integrated; if `git branch -d` refuses,
+#    the branch is not fully merged — keep it rather than forcing -D)
 git branch -d "$BRANCH"
 
 # 5. Prune any stale worktree metadata
