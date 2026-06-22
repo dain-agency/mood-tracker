@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "installed_at": "2026-05-13T11:50:57.748Z",
-  "last_upgrade_at": "2026-06-21T09:19:30.246Z",
-  "library_snapshot_date": "2026-06-21",
+  "last_upgrade_at": "2026-06-22T10:05:42.735Z",
+  "library_snapshot_date": "2026-06-22",
   "tooling_version": "0.2.3",
   "project": {
     "name": "mood-tracker",
@@ -873,8 +873,8 @@
     {
       "slug": "skill-worktree",
       "target_path": ".claude/skills/worktree/SKILL.md",
-      "library_version": 3,
-      "installed_sha": "7b372ff879e8f3506997bbc34be1bceb0ae47ba18bf852c619ddaf7996a15a07",
+      "library_version": 4,
+      "installed_sha": "23d75fef3c6a8d0e4650c7607e6f0768b803c01ff8cc6ef4620266172690c397",
       "marker": "managed",
       "installed_at": "2026-05-17T08:46:53.466Z"
     },
