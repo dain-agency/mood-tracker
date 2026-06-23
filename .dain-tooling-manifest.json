@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "installed_at": "2026-05-13T11:50:57.748Z",
-  "last_upgrade_at": "2026-06-22T10:05:42.735Z",
-  "library_snapshot_date": "2026-06-22",
+  "last_upgrade_at": "2026-06-23T09:12:39.061Z",
+  "library_snapshot_date": "2026-06-23",
   "tooling_version": "0.2.3",
   "project": {
     "name": "mood-tracker",
