@@ -26,7 +26,7 @@ Agent Swarm Feature Factory — from idea to merged PR via six layers of context
 7.   Pre-Flight      → Final technical checks                   [AGENT: ship-preflight]
 8.   E2E Testing     → Browser tests against user journeys      [AGENT: ship-e2e]
 9.   HUMAN REVIEW    → User tests running application
-10.  PR              → Push, create PR, one Greptile cycle      [AGENT: ship-pr]
+10.  PR              → Push, create PR, one DainOS reviewer cycle [AGENT: ship-pr]
 11.  Retrospective   → Analyse build, propose pipeline patches  [SKILL: ship-retrospective — INLINE in main thread]
 12.  Human merges
 ```
@@ -44,7 +44,7 @@ Build, review, and code-writing phases stay as `Agent` dispatches — those genu
 
 ## Route Check — run BEFORE Phase 0
 
-**Read this first. /ship costs $50-150 and takes half a day. If this feature is simpler, use a lighter command.**
+**Read this first. /ship costs ~$50-150 of plan usage plus ~$15-40 of usage credits for Fable phases, and takes half a day. If this feature is simpler, use a lighter command.**
 
 Answer these 3 questions:
 
@@ -67,6 +67,58 @@ Answer these 3 questions:
 > "This is a [N]/3 on the /ship complexity scale. I recommend [tool] — it will cost ~$[estimate] and take ~[time]. Should I use /ship or switch to [lighter option]?"
 
 **Only continue to Phase 0 once the user explicitly confirms /ship is the right tool.**
+
+---
+
+## Model Policy — declared before Phase 0, recorded in the progress file
+
+Every ship runs against an explicit model policy. The default (below) can be overridden at ship start; either way, copy the policy into the progress file under a `## Model Policy` heading so the telemetry rows have a declared baseline to compare against.
+
+### Default policy (v12)
+
+| Phase | Model | Effort | Billing rail |
+|---|---|---|---|
+| Coordinator / main thread (incl. Phase 1 Discovery, Phase 11 Retrospective) | claude-sonnet-5 | high | Plan |
+| 3. Architect | claude-fable-5 | default | **Usage credits** |
+| 5. Plan Writer | claude-sonnet-5 | high | Plan |
+| 6. Foreman | claude-sonnet-5 | medium | Plan |
+| 6. Builders (default) | claude-sonnet-5 | medium | Plan |
+| 6. Builders (escalated — see triggers) | claude-fable-5 | default | **Usage credits** |
+| 6. Review Panel — mechanical/grep-verifiable (Quality) | claude-haiku-4-5 | — | Plan |
+| 6. Review Panel — judgement (Business, UX, Compliance) | claude-sonnet-5 | medium | Plan |
+| 7. Pre-Flight | claude-haiku-4-5 | — | Plan |
+| 8. E2E | claude-sonnet-5 | medium | Plan |
+| 10. PR | claude-sonnet-5 | low | Plan |
+
+### Fable escalation triggers (builders)
+
+Escalate an individual builder task to Fable 5 when it touches ANY of:
+- Schema migrations or destructive data changes
+- RLS, tenancy, or auth-boundary code (Mabel/Herbert: always)
+- Cross-domain seams or shared-package surfaces
+- Concurrency, race conditions, or long-horizon multi-file refactors
+
+### Fable unavailability — graceful degradation to latest Opus
+
+Fable 5 bills via usage credits and its availability is not guaranteed (credit balance, model suspension, capacity). If a Fable-designated dispatch (Architect, or an escalated builder) fails with an access, credit-balance, or model-availability error:
+
+1. Retry ONCE on Fable 5 (transient errors happen).
+2. If the retry fails, automatically degrade to the latest Opus model — use the `opus` model alias, not a pinned version string, so the fallback tracks the newest Opus (currently 4.8) without a policy edit. Opus bills against plan usage, so degradation never blocks on credits.
+3. Do NOT stall the pipeline or wait on user input. Degradation is automatic — but it is never silent:
+   - Tell the user immediately, in one line: "Fable 5 unavailable (<reason>) — Phase N degraded to Opus (latest). Architecture/build quality expectations should be adjusted accordingly."
+   - Record in the Phase Telemetry row: Model = opus (degraded from claude-fable-5), with the failure reason in Notes.
+4. Degradation is per-dispatch, not sticky. The next Fable-designated dispatch in the same ship attempts Fable 5 first.
+
+Safeguard-classifier reroutes (Fable → Opus, billed at Opus rates) are NOT failures and need no retry — but they MUST be recorded in the telemetry row identically to a degradation. A ship whose Architect phase was rerouted did not get a Fable architecture, and the retrospective should know that.
+
+### Effort discipline
+
+- x-high is NEVER a silent default. At x-high, Sonnet 5 can cost more than Opus 4.8 at a comparable accuracy point — if a task seems to warrant x-high, that is an escalation decision (Fable or Opus), not an effort tweak.
+- Telemetry rows record model AND effort actually used, not the policy's intent. A substitution (fallback, safeguard reroute) must appear in Notes.
+
+### Enforcement note
+
+This table is the canonical declaration, but Claude Code subagent models are set in each agent definition's frontmatter. A policy change here is not live until the `model:` field is updated in: ship-architect, ship-plan-writer, ship-foreman, ship-preflight, ship-e2e, ship-pr, and the builder/reviewer agent definitions. The coordinator model is set per-session (`/model`).
 
 ---
 
@@ -151,6 +203,9 @@ Create `docs/plans/YYYY-MM-DD-<feature-slug>-progress.md`:
 - active_sprint_id: (TBD — set in Phase 0)
 - active_sprint_name: (TBD — set in Phase 0)
 
+## Model Policy
+(copied from cmd-ship Model Policy at ship start — record any overrides here)
+
 ## Progress
 
 | Phase | Status | Started | Completed | Notes |
@@ -181,10 +236,10 @@ Recorded after every phase completion. Lets the retrospective answer *which phas
 | 6. Build (Round N) | | | files: N changed / M LOC | reviewer cycles: K | repeat per round |
 | 7. Pre-Flight | | | — | findings: N | |
 | 8. E2E Testing | | | journeys: N covered | failures: M | |
-| 10. PR | | | — | greptile rounds: N | |
+| 10. PR | | | — | reviewer rounds: N | |
 | 11. Retrospective | | | patches: N proposed / M applied | — | |
 
-**Filling this in is mandatory.** If a phase finishes without a telemetry row, the orchestrator must stop and complete the row before moving on. Use proxy metrics when exact tokens aren't available: model id, wall-clock duration, output artifact size, count of interactive turns. Wall-clock comes from comparing the `Started` and `Completed` columns above.
+**Filling this in is mandatory.** If a phase finishes without a telemetry row, the orchestrator must stop and complete the row before moving on. Use proxy metrics when exact tokens aren't available: model id, wall-clock duration, output artifact size, count of interactive turns. Wall-clock comes from comparing the `Started` and `Completed` columns above. The Model column records what ACTUALLY ran (including effort level, degradations, and safeguard reroutes) — not the policy's intent.
 
 ## Review Reports
 (populated during build)
@@ -204,7 +259,7 @@ Recorded after every phase completion. Lets the retrospective answer *which phas
 
 **Fail fast on environment issues. The whole point: catch the bug at minute 5, not hour 4.**
 
-Run these checks against the **main repo** (worktree doesn't exist yet — that's Phase 6). The goal is to confirm the *baseline* environment is healthy before we spend Opus tokens on Discovery and Architect.
+Run these checks against the **main repo** (worktree doesn't exist yet — that's Phase 6). The goal is to confirm the *baseline* environment is healthy before we spend premium tokens on Discovery and Architect.
 
 ### Check 1: Required env vars present
 
@@ -309,6 +364,8 @@ Ask: "Does this accurately describe the people, the need, and the context? Edit 
 
 Dispatch the `ship-architect` agent with the Feature Brief path.
 
+Per the Model Policy, the Architect runs on **claude-fable-5** (usage credits). Apply the Fable unavailability degradation rules from the Model Policy section if the dispatch fails.
+
 The Architect reads the codebase, finds patterns, and produces sections 6-7 (Technical Strategy + Implementation Spec). **If the feature involves UI changes, the Architect also generates mid-fi wireframes using the visual companion server and reviews them interactively with the user per-screen.**
 
 **Output:** Complete Feature Brief (sections 6-7, plus 7b Wireframes if applicable) at the same path.
@@ -341,6 +398,10 @@ Active sprint: "[active_sprint_name]" (id: <active_sprint_id>) — include sprin
 ```
 
 The plan-writer should include `"sprintId": "<active_sprint_id>"` on every task in the manifest.
+
+### Fable escalation flags in the manifest
+
+The plan-writer should mark any task matching the Fable escalation triggers (see Model Policy) with `"modelEscalation": "claude-fable-5"` so the Foreman dispatches those builders on Fable without re-deriving the decision.
 
 **Output:** Task Manifest at `docs/plans/YYYY-MM-DD-<feature>-tasks.json`
 
@@ -379,7 +440,8 @@ Active sprint: "[active_sprint_name]" (id: <active_sprint_id>) — pass sprintId
 The Foreman:
 1. Reads the task manifest
 2. For each round: dispatches builder agents → invokes review panel → fixes blocking issues
-3. Tracks progress in a round-by-round log
+3. Dispatches builders on the Model Policy default (claude-sonnet-5), except tasks flagged `modelEscalation` — those run on claude-fable-5 with the degradation rules applied
+4. Tracks progress in a round-by-round log
 
 **Output:** All code built, reviewed at each round boundary.
 
@@ -495,12 +557,12 @@ The PR Agent:
 1. Runs final PR checklist
 2. Pushes branch
 3. Creates PR with Feature Brief summary
-4. Waits for Greptile review
-5. Addresses one cycle of feedback
+4. Waits for the DainOS PR reviewer
+5. Addresses one cycle of findings
 
 **Output:** PR URL and final state.
 
-Update progress file. **Tell user:** "PR #<number> at <url>. Greptile feedback addressed. Ready for your merge."
+Update progress file. **Tell user:** "PR #<number> at <url>. DainOS reviewer findings addressed. Ready for your merge."
 
 ---
 
@@ -513,11 +575,11 @@ Invoke the `ship-retrospective` skill via the `Skill` tool. Pass the progress fi
 The retrospective is a *conversation* with the user about what to patch. Running it as a subagent loses the back-and-forth — the user sees a wall of proposed patches with no chance to redirect.
 
 The skill:
-1. Analyses the full build — progress file, **Phase Telemetry table**, review findings, fix cycles, Greptile feedback
+1. Analyses the full build — progress file, **Phase Telemetry table**, review findings, fix cycles, DainOS PR reviewer findings
 2. Proposes **universal patches** (skill/agent improvements for all projects) and **project-specific patches** (config/CLAUDE.md updates for this project)
 3. Presents patches one at a time, takes your Y/N/Edit per patch
 
-**Telemetry-aware:** the retrospective should specifically read the Phase Telemetry table and call out the most expensive phase. *"Discovery took 24 minutes and emitted a 1,014-line brief — that's the cost ceiling."*
+**Telemetry-aware:** the retrospective should specifically read the Phase Telemetry table and call out the most expensive phase. *"Discovery took 24 minutes and emitted a 1,014-line brief — that's the cost ceiling."* It should also compare the Model Policy declaration against what actually ran — degradations, safeguard reroutes, and effort overrides are retrospective inputs, not noise.
 
 **Output:** Approved patches applied, committed to the branch before merge.
 
@@ -603,7 +665,7 @@ Quality, business, context-mapper, and UX reviewers each have a narrow concern. 
 - The brief slice for the round (the same one given to the builder)
 - The reviewer-specific checklist from the agent definition
 
-A reviewer that re-reads the full brief on every round adds Opus tokens to every round of every build. Compounds fast.
+A reviewer that re-reads the full brief on every round adds premium tokens to every round of every build. Compounds fast.
 
 ---
 
@@ -613,7 +675,8 @@ A reviewer that re-reads the full brief on every round adds Opus tokens to every
 2. **Never commit to main.** All commits on the feature branch. Only merge touches main.
 3. **Human gates are blocking.** Do not proceed past gates 2, 4, or 9 without explicit user approval.
 4. **Delegate, don't do.** Use the right skill/agent for each phase — don't try to be all agents at once. **Exception:** Phases 1 (Discovery) and 11 (Retrospective) run as inline `Skill` invocations in the main thread, never as `Agent` dispatches. AskUserQuestion does not exist in subagents.
-5. **Track everything.** Progress file updated after every phase transition. **Phase Telemetry table is mandatory** — model + wall-clock + output size + interaction count for every phase.
+5. **Track everything.** Progress file updated after every phase transition. **Phase Telemetry table is mandatory** — model + effort + wall-clock + output size + interaction count for every phase.
 6. **E2E testing is NEVER optional.** Phase 8 must run with real browser automation. If Chrome is unavailable or dev servers won't start, STOP and run the boot-failure diagnostic — do not skip or defer to human review. Unit tests cannot replace browser verification. E2E has found real bugs in 100% of builds where it was initially skipped.
 7. **No fake interactivity.** If a phase is documented as interactive (Discovery, Retrospective), and `AskUserQuestion` is unavailable in the current execution context, STOP and surface the issue. Do NOT silently fall back to a non-interactive "speculation" mode that fakes the appearance of an interview.
 8. **Sprint context is set once in Phase 0.** Do not re-query the active sprint mid-build. If the sprint changes while /ship is running, it is captured on the next /wrap-up, not mid-pipeline.
+9. **Model Policy is declared, not ambient.** The policy is copied into the progress file at ship start; degradations and reroutes are recorded, never silent. Fable unavailability degrades gracefully to the latest Opus per the Model Policy section — no stalls, no silent substitutions.

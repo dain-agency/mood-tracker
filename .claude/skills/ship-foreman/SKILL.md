@@ -34,11 +34,31 @@ If you genuinely cannot run a step — a sub-agent hit API usage limits, Chrome 
    - **Explicit skip** with the user's acknowledged-risk acceptance (rare — should be logged in the progress file as a "deviation")
 4. **Wait** for the user to choose. Do not default-proceed.
 
+**One codified exception:** Fable 5 unavailability on a `modelEscalation` task follows the graceful-degradation protocol below — it degrades automatically to the latest Opus without stopping, because the cmd-ship Model Policy pre-authorises exactly that substitution. It is announced and logged, never silent. No other substitution is pre-authorised.
+
 **Silent skips are the single biggest trust issue in the pipeline.** The user approved each phase gate expecting downstream steps to run as designed. A self-authorized skip — even a "pragmatic" one — violates the contract and makes every future build less trustworthy.
 
 **Real case from PR-087 (leave-improvements):** I skipped the Round 4 UI Auditor dispatch to "save context" without asking the user, even though the user had explicitly said "make sure not to skip any steps" at the start of the session. When the user pushed back later, I then ran the audit manually via Chrome browser tools instead of dispatching the proper `ship-ui-auditor` agent — a second drift from the skill contract. Both were process failures, not technical ones. The right move both times would have been to stop and ask the user.
 
 **The only mandatory step that can be replaced with direct tool use is one where the user has explicitly directed you to do so in-session** (e.g., "Chrome extension won't connect — run the audit yourself manually"). Absent that direction, dispatching the proper agent is the contract.
+
+---
+
+## Model Escalation & Degradation (cmd-ship v12 Model Policy)
+
+The task manifest may flag tasks with `"modelEscalation": "claude-fable-5"`. These were declared by the Plan Writer against the Model Policy's escalation triggers (RLS/tenancy, schema migrations, cross-domain seams, concurrency).
+
+**Dispatching an escalated task:**
+1. Dispatch the builder with `model: claude-fable-5` (Fable bills via usage credits, not plan limits).
+2. If the dispatch fails with an access, credit-balance, or model-availability error: retry ONCE on Fable 5.
+3. If the retry fails, **automatically degrade to the latest Opus** — use the `opus` model alias, not a pinned version string. Opus bills against plan usage, so degradation never blocks on credits. Do NOT stall or wait for user input.
+4. Announce in one line: "Fable 5 unavailable (<reason>) — task <id> degraded to Opus (latest)."
+5. Record in the round's telemetry row: Model = opus (degraded from claude-fable-5), failure reason in Notes.
+6. Degradation is **per-dispatch, not sticky** — the next escalated task attempts Fable 5 first.
+
+Safeguard-classifier reroutes (Fable → Opus, billed at Opus rates) are NOT failures and need no retry — but record them in the telemetry row identically. A task built by Opus under a Fable flag did not get a Fable build, and the retrospective should know.
+
+Non-escalated tasks dispatch on the builder agent definition's default model. Never escalate a task the manifest didn't flag — if you believe a task warrants Fable mid-build, that is a Brief Amendment-class observation: log it for the retrospective, don't self-authorise.
 
 ---
 
@@ -88,7 +108,7 @@ This prevents the most common foreman failure: dispatching a builder with stale 
 
 ## Step 0.5: Main-drift check (every 3 rounds, or before starting any round)
 
-Long-running feature branches accumulate conflict debt against `origin/main`. Left unaddressed, this manifests as big merge conflicts at PR time or — worse — during the Greptile review cycle when attention is already exhausted. The foreman should proactively pull main into the feature branch on a regular cadence.
+Long-running feature branches accumulate conflict debt against `origin/main`. Left unaddressed, this manifests as big merge conflicts at PR time or — worse — during the PR review cycle when attention is already exhausted. The foreman should proactively pull main into the feature branch on a regular cadence.
 
 **When to run this check:**
 - Before starting Round 1 (catches any commits landed on main since the worktree was created)
@@ -134,7 +154,7 @@ If `AHEAD > 0`:
 
 5. **Commit the merge** with a clear message:
    ```bash
-   git commit -m "chore(ship): merge origin/main — <N> commits, <conflict summary or "clean">"
+   git commit -m "chore(ship): merge origin/main — <N> commits, <conflict summary or \"clean\">"
    ```
 
 6. **Log in the progress file** under "Cross-PR merges" so the retrospective and PR agents know about it.
@@ -172,14 +192,15 @@ echo "[$(date -u +%H:%M:%SZ)] Round N: done in Xm, K fix cycles, Y reviewer find
 For each task in the round:
 
 a. **Check dependencies** — all tasks in `depends` must be marked complete
-b. **Dispatch** — Use the `Agent` tool with the task's assigned `subagent_type`:
+b. **Check for `modelEscalation`** — if the task carries `"modelEscalation": "claude-fable-5"`, dispatch on Fable 5 per the Model Escalation & Degradation protocol above (including the announce line and telemetry recording)
+c. **Dispatch** — Use the `Agent` tool with the task's assigned `subagent_type`:
    - Provide the Feature Brief context (relevant sections)
    - Provide the task spec (inputs, outputs, done criteria)
    - Provide the worktree path as working directory
    - Include the full error output from any previous failed attempt (see Error Routing below)
    - If the task has a `gotchas` array, include: "GOTCHAS: Before starting, read these sections from docs/gotchas/GOTCHAS.md: <comma-separated anchors>. Use Grep for '<!-- ANCHOR: <id> -->' to find each section, then Read from that line."
-c. **Verify "done" criteria** — check each criterion against actual files
-d. **Mark complete or flag failure**
+d. **Verify "done" criteria** — check each criterion against actual files
+e. **Mark complete or flag failure**
 
 **Parallel dispatch:** Tasks within a round that have no inter-dependencies can be dispatched in parallel using multiple Agent tool calls in a single message.
 
@@ -442,11 +463,11 @@ Route to the correct fixer:
 After the round (including any fixes):
 - Log round results to the progress file
 - **Update the Phase Telemetry table** in the progress file. Find the row for the round you just finished (e.g. `| 6. Build (Round A) | | | files: N changed / M LOC | reviewer cycles: K | |`) and fill it in:
-  - **Model:** the model the orchestrator was using (from the agent definition's frontmatter, e.g. `sonnet-4-7`).
+  - **Model:** the model(s) actually used this round — the orchestrator's model (from the agent definition's frontmatter, e.g. `claude-sonnet-5`) plus any escalated-task models, including degradations (e.g. `opus (degraded from claude-fable-5)`).
   - **Wall-clock:** how long the round took (start-of-Round-N → done-of-Round-N).
   - **Output size:** `git diff --stat <round-base>..HEAD` summary — files changed + LOC delta.
   - **Interactions:** number of reviewer cycles that ran for this round (1 if the panel passed first time, more if there were fix-cycles).
-  - **Notes:** anything notable — fix-cycle reasons, builder retries, deviations from the manifest.
+  - **Notes:** anything notable — fix-cycle reasons, builder retries, deviations from the manifest, Fable degradations or safeguard reroutes with reasons.
 
   This data is the customer of `ship-retrospective` — without it, retros fall back to reconstructing from `git log`, losing model + reviewer-cycle info.
 
@@ -545,6 +566,7 @@ Do NOT use 'any' or type assertions to silence errors. Tests are held to the sam
 | Situation | Action |
 |-----------|--------|
 | Builder fails a task | Retry with structured error context (see Error Routing). Max 2 retries. |
+| Fable 5 unavailable on escalated task | Retry once, then degrade to latest Opus per Model Escalation & Degradation. Announce + log. Never stall. |
 | tsc fails after round | Route grouped errors to owning builders (see Error Routing). Max 3 cycles. |
 | Tests fail after round | Determine test vs implementation issue, route accordingly. |
 | Reviewer flags BLOCK | Route to structural fixer or builder (see Fix Blocking Issues). Max 2 cycles. |
@@ -651,6 +673,8 @@ Agent(subagent_type="ship-architect", prompt="MODE: update-config. Update projec
 ```
 
 This refreshes the config's volatile sections (domain inventory, component catalogue, schema summary, route inventory) and applies any persona/context/story additions proposed by Discovery in the Feature Brief's `## Config Updates` section.
+
+**Update-mode dispatches run on the architect's default model** — this is inventory refresh, not architecture. If dispatching `ship-architect` in update mode would invoke Fable 5 (its frontmatter default), override the dispatch to `model: sonnet` — do not spend usage credits on config bookkeeping.
 
 ### 7. Return Control
 

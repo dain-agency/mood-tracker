@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "installed_at": "2026-05-13T11:50:57.748Z",
-  "last_upgrade_at": "2026-07-02T09:08:00.940Z",
-  "library_snapshot_date": "2026-07-02",
+  "last_upgrade_at": "2026-07-03T10:34:54.365Z",
+  "library_snapshot_date": "2026-07-03",
   "tooling_version": "0.2.3",
   "project": {
     "name": "mood-tracker",
@@ -65,8 +65,8 @@
     {
       "slug": "agent-ship-context-mapper",
       "target_path": ".claude/agents/ship-context-mapper.md",
-      "library_version": 1,
-      "installed_sha": "3189bde84fe000deb941c83483e0d4336dcbbc26907038506d936a8a23f82092",
+      "library_version": 2,
+      "installed_sha": "540661c061d661baa52b172d8bb69c7d17ee38635c8eb02daa91f8cc81c1d96b",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
@@ -81,8 +81,8 @@
     {
       "slug": "agent-ship-quality-reviewer",
       "target_path": ".claude/agents/ship-quality-reviewer.md",
-      "library_version": 3,
-      "installed_sha": "aca7e313be26f315457f930458123dc94b7c8aa67840e0ae900d7c575d13ca3a",
+      "library_version": 4,
+      "installed_sha": "8474c1a822e0b929647b2344a90a793c36797e51f89b6c9d0e403249a6d4fcac",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
@@ -273,8 +273,8 @@
     {
       "slug": "cmd-ship",
       "target_path": ".claude/commands/ship.md",
-      "library_version": 11,
-      "installed_sha": "1d956fe890c2b4b5102e78ac1356fa24e737d85496793dc1d5f699a46b218617",
+      "library_version": 12,
+      "installed_sha": "09a8302ac69d1669fb729ecb44e5800bd9bb4dadf6f18304f6c86daf1997fbbd",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.734Z"
     },
@@ -761,8 +761,8 @@
     {
       "slug": "skill-ship-architect",
       "target_path": ".claude/agents/ship-architect.md",
-      "library_version": 4,
-      "installed_sha": "9db5318fdb209558b55c4e38e307f272a840ecbdacd0c1f296b51bd281dbd712",
+      "library_version": 5,
+      "installed_sha": "94893adccd4f373b72fce3fafddb29d948feac8e92eca41694ebf07a36ba33c6",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
@@ -793,16 +793,16 @@
     {
       "slug": "skill-ship-foreman",
       "target_path": ".claude/skills/ship-foreman/SKILL.md",
-      "library_version": 8,
-      "installed_sha": "243f75ddbf21745d09c70144ecdbdd20bf50947ba2e2919ba6dba11028285890",
+      "library_version": 9,
+      "installed_sha": "c9f0157aa5dbe0444cbfb832933a5531305ea411a05c8ee6d9b3e11c5543f168",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
     {
       "slug": "skill-ship-plan-writer",
       "target_path": ".claude/agents/ship-plan-writer.md",
-      "library_version": 4,
-      "installed_sha": "54b71e52a19ff1c65f2e4321149f8ce340022a96db3168b992a47025db233e8c",
+      "library_version": 5,
+      "installed_sha": "63c2e02e8eb4806e072db96655d8679706467039ed790b4cf871eb17422123e9",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
