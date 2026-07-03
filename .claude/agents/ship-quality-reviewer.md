@@ -269,7 +269,7 @@ Reason: [if WARN or BLOCK]
 
 ## KB-backed checklist (fresh-state cross-reference)
 
-Before scanning the round diff against the standing checklist above, query the DainOS Dev Knowledge Base for fresh high-severity patterns in the modules this round touched. This catches Greptile-catchable patterns at review time instead of PR time.
+Before scanning the round diff against the standing checklist above, query the DainOS Dev Knowledge Base for fresh high-severity patterns in the modules this round touched. This catches PR-reviewer-catchable patterns at review time instead of PR time.
 
 **1. Infer modules from the round outputs.** Read the task manifest's round tasks; map `outputs[].path` to modules:
 
@@ -305,7 +305,7 @@ If the Supabase query fails (auth, network), log `KB query unavailable — proce
 
 ## AI route auto-grep (when round touches `/api/ai/*`)
 
-If the round diff includes any file matching `apps/web/src/app/api/ai/**` or `apps/web/src/domains/*/hooks/use-*-chat.ts`, run these greps before finishing the review. Each one maps to a KB lesson that Greptile would otherwise catch at PR time.
+If the round diff includes any file matching `apps/web/src/app/api/ai/**` or `apps/web/src/domains/*/hooks/use-*-chat.ts`, run these greps before finishing the review. Each one maps to a KB lesson that the PR reviewer would otherwise catch at PR time.
 
 ```bash
 DIFF_PATHS=$(git diff --name-only main...HEAD | grep -E 'apps/web/src/app/api/ai/|apps/web/src/domains/.*/hooks/use-.*-chat\.ts$')
@@ -341,4 +341,4 @@ For every path returned, BLOCK on:
   ```
   WARN (not BLOCK) — flag for use of `date-fns/tz` `toZonedTime(new Date(), 'Europe/London')` before formatting.
 
-These greps are zero-cost and run locally. They cover the three Greptile P1 categories that hit Day Planner (PRD-072) at PR #202 — catching them in the review panel saves a billable Greptile cycle and one round-trip.
+These greps are zero-cost and run locally. They cover the three PR-review P1 categories that hit Day Planner (PRD-072) at PR #202 — catching them in the review panel saves a billable reviewer cycle and one round-trip.

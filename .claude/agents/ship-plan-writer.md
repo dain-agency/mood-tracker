@@ -62,12 +62,26 @@ Sizes:
 
 Canonical failure: PRD-026 F2's task manifest correctly identified 10 Fabric tasks but did NOT flag them as out-of-foreman scope. The Foreman attempted to dispatch a `ship-fabric-builder` agent that does not exist; the orchestrator had to hand-route every Fabric task to the main thread. 30 seconds of project-config inspection at plan-writer time would have produced an unambiguous manifest.
 
+### Step 4b: Flag Model Escalations (MANDATORY — cmd-ship v12 Model Policy)
+
+Builders run on the pipeline's default model. Some tasks warrant Fable 5. For each task, check against the escalation triggers from the cmd-ship Model Policy and set `"modelEscalation": "claude-fable-5"` on any task that touches ANY of:
+
+- Schema migrations or destructive data changes
+- RLS, tenancy, or auth-boundary code (Mabel/Herbert: always)
+- Cross-domain seams or shared-package surfaces
+- Concurrency, race conditions, or long-horizon multi-file refactors
+
+Tasks with no trigger get NO `modelEscalation` field — absence means default model. Do NOT escalate on general difficulty alone; the triggers are the contract. The Foreman honours this flag mechanically and applies the Fable→Opus degradation rules if Fable is unavailable — your job is only to declare it.
+
+Include an **Escalation Audit** line in the manifest metadata: `"escalatedTasks": ["task-003", "task-007"]` (empty array if none — the absence must be a decision, not an omission).
+
 ### Step 5: Specify Task Details
 
 For each task:
 - `id`: Sequential (task-001, task-002, ...)
 - `name`: Clear description
 - `agent`: Which builder executes it
+- `modelEscalation`: `"claude-fable-5"` if a Step 4b trigger applies (omit otherwise)
 - `inputs`: What files/sections it reads
 - `outputs`: What files it creates/modifies
 - `done`: Verifiable criteria
@@ -109,3 +123,4 @@ Write the task manifest to `docs/plans/YYYY-MM-DD-<feature>-tasks.json`.
 - Every journey step has at least one task covering it
 - No circular dependencies
 - Every output file has exactly one task that creates it
+- Every task touching a Step 4b trigger carries `modelEscalation`, and `escalatedTasks` in the metadata matches the flagged set exactly
