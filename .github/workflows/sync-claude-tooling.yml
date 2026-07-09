@@ -101,15 +101,27 @@ jobs:
             automated
             claude-tooling
 
-      - name: Enable auto-merge
+      - name: Merge sync PR
         if: steps.diff.outputs.changed == 'true' && steps.pr.outputs.pull-request-number != ''
         env:
           GH_TOKEN: ${{ secrets.CLAUDE_TOOLING_PAT || secrets.GITHUB_TOKEN }}
         run: |
-          gh pr merge ${{ steps.pr.outputs.pull-request-number }} \
-            --auto \
-            --squash \
-            --delete-branch
+          # gh decides between arming auto-merge and merging directly from a
+          # mergeability read taken at PR-creation time. That read can go stale
+          # within seconds (GitHub computes mergeability async), and a stale
+          # read makes gh pick enablePullRequestAutoMerge on a PR that is
+          # already mergeable, which GitHub refuses ("clean/unstable status")
+          # and the PR strands open. Retrying after a pause re-reads the
+          # now-computed state, so gh picks the correct path per repo: direct
+          # merge where main has no required checks, armed auto-merge where it
+          # does. Never fall back to a bare merge here - it could bypass
+          # required checks on protected repos.
+          PR='${{ steps.pr.outputs.pull-request-number }}'
+          if ! gh pr merge "$PR" --auto --squash --delete-branch; then
+            echo "merge attempt raced GitHub's mergeability computation - retrying once"
+            sleep 10
+            gh pr merge "$PR" --auto --squash --delete-branch
+          fi
 
       - name: Ensure required labels exist
         if: ${{ always() }}
