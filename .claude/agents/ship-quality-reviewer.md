@@ -329,7 +329,7 @@ For every path returned, BLOCK on:
   ```
   If a request-body string field (e.g. `validated.data.<field>` where the schema declares `z.string()`) appears in a `streamText` user message without `sanitiseForPrompt(...)` between them: BLOCK.
 
-- **Hand-rolled SSE / NDJSON parsers** (this is invariant 7 from `.claude/rules/otto-ai-routes.md`; see the rule for the full reason). Any of these in a chat hook = BLOCK:
+- **Hand-rolled SSE / NDJSON parsers** (this is invariant 7 of the Otto AI Route Contract; see the `/otto-ai-routes` skill (`skill-otto-ai-routes`; gate stub at `.claude/rules/otto-ai-routes.md`) for the full reason). Any of these in a chat hook = BLOCK:
   ```bash
   grep -nE "indexOf\(':'\)|\\\\b4:\\\\b|'role' in parsed" <path>
   ```

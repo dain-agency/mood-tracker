@@ -94,9 +94,13 @@ git ls-files --others --ignored --exclude-standard -z \
 | while read -r rel; do
     f="$WT/$rel"
     [ -f "$f" ] || continue
-    if grep -qE '^(NEXT_PUBLIC_|VITE_|REACT_APP_|PUBLIC_)[A-Z_]*(API_URL|BASE_URL|HOST|HOSTNAME)=' "$f"; then
+    # SUPABASE exemption: NEXT_PUBLIC_SUPABASE_URL / VITE_SUPABASE_URL match the
+    # suffix pattern (SUPA + BASE_URL) but are the app's DATABASE endpoint, not a
+    # baked dev host — stripping them breaks every Supabase-backed app in the
+    # worktree (KB 8c04ce12).
+    if grep -E '^(NEXT_PUBLIC_|VITE_|REACT_APP_|PUBLIC_)[A-Z_]*(API_URL|BASE_URL|HOST|HOSTNAME)=' "$f" | grep -qv 'SUPABASE'; then
       cp "$f" "$f.worktree-backup"
-      sed -i.bak -E '/^(NEXT_PUBLIC_|VITE_|REACT_APP_|PUBLIC_)[A-Z_]*(API_URL|BASE_URL|HOST|HOSTNAME)=/d' "$f"
+      sed -i.bak -E '/SUPABASE/!{/^(NEXT_PUBLIC_|VITE_|REACT_APP_|PUBLIC_)[A-Z_]*(API_URL|BASE_URL|HOST|HOSTNAME)=/d}' "$f"
       rm -f "$f.bak"
       echo "  stripped baked public URL vars from $rel (backup at .worktree-backup)"
     fi
@@ -202,6 +206,7 @@ If `git worktree remove` complains about untracked files (typically `node_module
 | **Prisma** | `@prisma/client did not initialize yet` because the hardlinked client is from main's last schema | Step 5 detects `schema.prisma` and runs `prisma generate`. If you change `schema.prisma` later in the worktree, regenerate again |
 | **Drizzle** | Stale generated types if `drizzle.config.*` has changed since the hardlink | Step 5 detects `drizzle.config.*` and runs `drizzle-kit generate` |
 | **Next.js / Vite / CRA per-branch dev URLs** | `NEXT_PUBLIC_API_URL` / `VITE_API_URL` baked from main makes the worktree's web app talk to main's API | Step 6 strips `*_API_URL`, `*_BASE_URL`, `*_HOST*` from public env vars. Backup is saved at `<file>.worktree-backup` in case you need the original |
+| **Supabase apps** | `NEXT_PUBLIC_SUPABASE_URL` matches the `*BASE_URL` strip pattern (SUPA+BASE_URL) and used to be deleted, 500-ing every app | Step 6 now exempts any `SUPABASE` line. If a worktree predates the fix, restore from the `.worktree-backup` files |
 | **Reverse proxy with branch-prefix routing** (Portless, Caddy, etc.) | Only one instance of each named service can claim a route — last-started worktree wins, others get 502 | Run only one instance of each named service at a time. Stop the other worktree's dev process before starting this one |
 | **Subagent-spawned worktrees** (Agent tool `isolation: "worktree"`) | The harness creates throwaway worktrees the agent manages — don't run this skill on those | This skill is for **persistent** worktrees the user works in across sessions, not Agent-isolated dispatches |
 
