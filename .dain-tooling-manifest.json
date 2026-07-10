@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "installed_at": "2026-05-13T11:50:57.748Z",
-  "last_upgrade_at": "2026-07-09T10:53:56.204Z",
-  "library_snapshot_date": "2026-07-09",
-  "tooling_version": "0.2.3",
+  "last_upgrade_at": "2026-07-10T10:52:49.709Z",
+  "library_snapshot_date": "2026-07-10",
+  "tooling_version": "0.2.4",
   "project": {
     "name": "mood-tracker",
     "forge_project_id": null,
@@ -81,8 +81,8 @@
     {
       "slug": "agent-ship-quality-reviewer",
       "target_path": ".claude/agents/ship-quality-reviewer.md",
-      "library_version": 4,
-      "installed_sha": "8474c1a822e0b929647b2344a90a793c36797e51f89b6c9d0e403249a6d4fcac",
+      "library_version": 5,
+      "installed_sha": "f888c0a7041d9b3275d5d4bdcbed638edd986c6661ff310172003d7ff8ab572d",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
@@ -617,10 +617,18 @@
     {
       "slug": "rule-otto-ai-routes",
       "target_path": ".claude/rules/otto-ai-routes.md",
-      "library_version": 1,
-      "installed_sha": "725ed018835cbc5ad4b5977176ff03af4feba9fd11306c3576ef4710a3adfe39",
+      "library_version": 3,
+      "installed_sha": "5e0421282761068798ddafa306ed85a9284c8421ae0514e68a389e3bd17d888b",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
+    },
+    {
+      "slug": "rule-project-dossiers",
+      "target_path": ".claude/rules/project-dossiers.md",
+      "library_version": 1,
+      "installed_sha": "b6cba20abca2683c53cabfcdad90cdb19c3e8baab5d5650199bef048fad6e446",
+      "marker": "managed",
+      "installed_at": "2026-07-10T10:52:49.709Z"
     },
     {
       "slug": "rule-sprint-model",
@@ -751,6 +759,14 @@
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
     {
+      "slug": "skill-otto-ai-routes",
+      "target_path": ".claude/skills/otto-ai-routes/SKILL.md",
+      "library_version": 1,
+      "installed_sha": "ac8c338c892091887e7e0e31904f1d3a9a2c4c230a0ee7a95d8c62f864500e57",
+      "marker": "managed",
+      "installed_at": "2026-07-10T10:52:49.709Z"
+    },
+    {
       "slug": "skill-repo-init",
       "target_path": ".claude/skills/repo-init/SKILL.md",
       "library_version": 1,
@@ -817,16 +833,16 @@
     {
       "slug": "skill-ship-preflight",
       "target_path": ".claude/agents/ship-preflight.md",
-      "library_version": 4,
-      "installed_sha": "434407662ace1e310de4fb8cbb5910e4ad7bcfb80d17991dd40765d54c3e2361",
+      "library_version": 5,
+      "installed_sha": "db2206004d1d2df6c6a1201ded10c0e3d595c19c75458a2ef69ce4e677c28054",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
     {
       "slug": "skill-ship-preflight-inline",
       "target_path": ".claude/skills/ship-preflight/SKILL.md",
-      "library_version": 1,
-      "installed_sha": "c4c2effe698609c2dc1df3e716566443ef4985e2ce7a64b4760f5cc3aed3d6d1",
+      "library_version": 2,
+      "installed_sha": "00e64d0a9646034656fdfa71df1f4095f38f0bb21637273e2e2b45cf5895302b",
       "marker": "managed",
       "installed_at": "2026-05-15T09:09:28.397Z"
     },
@@ -873,8 +889,8 @@
     {
       "slug": "skill-worktree",
       "target_path": ".claude/skills/worktree/SKILL.md",
-      "library_version": 4,
-      "installed_sha": "23d75fef3c6a8d0e4650c7607e6f0768b803c01ff8cc6ef4620266172690c397",
+      "library_version": 5,
+      "installed_sha": "94eef17a3325f5fefdf2639eb2784ff6cbaf6caeb964cdf90cb9a92d5ff371d0",
       "marker": "managed",
       "installed_at": "2026-05-17T08:46:53.466Z"
     },

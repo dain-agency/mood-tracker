@@ -126,7 +126,7 @@ If the branch touches any file matching `apps/web/src/app/api/ai/**` or `apps/we
 cd <worktree> && bash scripts/check-ai-route-contract.sh
 ```
 
-The guard enforces `.claude/rules/otto-ai-routes.md`:
+The guard enforces the Otto AI Route Contract (`skill-otto-ai-routes`; gate stub at `.claude/rules/otto-ai-routes.md`):
 
 1. SSRF allowlist comes from `apps/web/src/app/api/ai/_lib/api-host.ts` (no inline `ALLOWED_API_HOSTS`)
 2. Routes accept `userContext` in their Zod request schema
