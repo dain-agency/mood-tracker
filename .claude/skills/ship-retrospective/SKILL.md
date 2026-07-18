@@ -67,10 +67,11 @@ For each round:
 - **Builder retries** — which builders struggled? On what kind of task?
 - **Reviewer blocks** — which reviewers flagged issues? What categories?
 
-### Greptile Feedback
-If the PR phase completed, read the progress file for Greptile feedback:
-- What did Greptile catch that the review panel missed?
-- Were there patterns in the Greptile findings?
+### DainOS Reviewer Feedback
+If the PR phase completed, fetch the DainOS reviewer's findings via the MCP (`pr_reviews` / `pr_review_findings`, repo = full GitHub slug — finding bodies are NOT on GitHub) and read the progress file:
+- What did the reviewer catch that the review panel missed?
+- Were there patterns in the findings? Which were scored `useful` vs `noise`/`wrong` (score_pr_finding)?
+- Recurring false positives belong in the Dev KB (`false-positive` tag) and as pr_review_suppression_rules candidates.
 
 ### Timing
 - Which rounds took disproportionately long?
@@ -87,7 +88,7 @@ Things that could have been caught earlier or avoided entirely:
 - Builder made an error the reviewer caught → should the builder's instructions include a specific check?
 - tsc failed on the same pattern multiple times → should a builder rule prevent this?
 - Brief amendment needed → should Discovery or Architect have caught this gap?
-- Greptile found something the review panel missed → should a reviewer's checklist be expanded?
+- The DainOS reviewer found something the review panel missed → should a reviewer's checklist be expanded?
 
 ### Process Improvements
 Things about the pipeline flow that could be better:
@@ -171,7 +172,7 @@ Present all patches to the human, grouped by category:
 - **Rounds:** N completed
 - **Fix cycles:** N total (M tsc, K reviewer blocks)
 - **Brief amendments:** N (M approved, K rejected)
-- **Greptile findings:** N addressed
+- **DainOS reviewer findings:** N addressed (N useful / N noise / N wrong)
 
 ## Universal Patches (improve pipeline for all projects)
 
@@ -251,7 +252,7 @@ Return to the orchestrator:
 
 ## When There's Nothing to Learn
 
-If the build was clean (no fix cycles, no blocks, no amendments, no Greptile issues), say so:
+If the build was clean (no fix cycles, no blocks, no amendments, no reviewer findings), say so:
 
 ```markdown
 # Retrospective: <feature name>
