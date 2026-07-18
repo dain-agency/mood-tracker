@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "installed_at": "2026-05-13T11:50:57.748Z",
-  "last_upgrade_at": "2026-07-17T09:56:18.745Z",
-  "library_snapshot_date": "2026-07-17",
+  "last_upgrade_at": "2026-07-18T09:24:25.442Z",
+  "library_snapshot_date": "2026-07-18",
   "tooling_version": "0.2.4",
   "project": {
     "name": "mood-tracker",
@@ -233,8 +233,8 @@
     {
       "slug": "cmd-pr-feedback",
       "target_path": ".claude/commands/pr-feedback.md",
-      "library_version": 3,
-      "installed_sha": "9930224d62ed649cd037f14831a9e474f6b98ffaa4f7a022a95c2765ebdac63e",
+      "library_version": 4,
+      "installed_sha": "6e7b1b6c751e5cb70b7c16d1d1f6104130a0e286e6b8a8e43660d2c01a7b8542",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
@@ -505,8 +505,8 @@
     {
       "slug": "hook-ship-phase-skill-reminder",
       "target_path": ".claude/hooks/ship-phase-skill-reminder.sh",
-      "library_version": 1,
-      "installed_sha": "3a935a64af29a8bb4176ce90377ff05691f17bf6a0e002f1b1f05124a2eb71dd",
+      "library_version": 2,
+      "installed_sha": "d93b9b3960ac33aad9a15f2e44330168317870b2a112f77a818492d6bf71b757",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
@@ -609,8 +609,8 @@
     {
       "slug": "rule-instruction-library-canonical",
       "target_path": ".claude/rules/instruction-library-canonical.md",
-      "library_version": 1,
-      "installed_sha": "a0808f64f2013cf34144a0730f3993c510c41712c708b8246cb595f7c521faaf",
+      "library_version": 2,
+      "installed_sha": "62d75d3d5242a95a5c01478b81344d774d3d0173a10ba8498cce77152b8cf606",
       "marker": "managed",
       "installed_at": "2026-06-01T09:55:34.081Z"
     },
@@ -677,6 +677,14 @@
       "installed_sha": "a0b55e56df5bf5408709d62b663570c7ed7be37a34672acd7de5c582f538709b",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.745Z"
+    },
+    {
+      "slug": "skill-create-milestone",
+      "target_path": ".claude/skills/create-milestone/SKILL.md",
+      "library_version": 1,
+      "installed_sha": "d5787409c814683857f8ac9bccf56df888b0548d579c7b7026551372d6a2ee52",
+      "marker": "managed",
+      "installed_at": "2026-07-18T09:24:25.442Z"
     },
     {
       "slug": "skill-dashboard-audit",
@@ -785,8 +793,8 @@
     {
       "slug": "skill-ship-architect-inline",
       "target_path": ".claude/skills/ship-architect/SKILL.md",
-      "library_version": 3,
-      "installed_sha": "42b0abfb9820f9df4f58ca56089abc31c2525a55c271e47a2172f0f91d8145ec",
+      "library_version": 4,
+      "installed_sha": "c432d7f0822272c1661fe1c1d805484c0857d497328af4aff4fb7baa3760366a",
       "marker": "managed",
       "installed_at": "2026-05-15T09:09:28.397Z"
     },
@@ -849,8 +857,8 @@
     {
       "slug": "skill-ship-retrospective-inline",
       "target_path": ".claude/skills/ship-retrospective/SKILL.md",
-      "library_version": 1,
-      "installed_sha": "8a9122a38942bd916c49c093d680a9dd5090e5936f7bf6ccc124cd780ea9d53c",
+      "library_version": 2,
+      "installed_sha": "6c19349a16b8e31033cdf2fbe454e9ba376906c8fd784208dd242cc71dd26460",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
@@ -921,8 +929,8 @@
     {
       "slug": "user-cmd-autopilot",
       "target_path": "~/.claude/commands/autopilot.md",
-      "library_version": 1,
-      "installed_sha": "969a5f9cbd8844c2f7cc6a3492b0684e5cc912fd631512bee50434d27ca3bace",
+      "library_version": 2,
+      "installed_sha": "1368e43229240c02ad58e8925b255057c16d00d1b266657cd625dfc8e837b62b",
       "marker": "managed",
       "installed_at": "2026-05-15T09:09:28.397Z"
     },
@@ -961,8 +969,8 @@
     {
       "slug": "user-cmd-review-email",
       "target_path": "~/.claude/commands/review-email.md",
-      "library_version": 1,
-      "installed_sha": "762846afe8bffc94f8c497ec7dce625f662c04dc3fa17ee944b919918a4854e2",
+      "library_version": 2,
+      "installed_sha": "855178d5bcf95378523dd5f9a6b44906372476528ea4e817c7a17365fe7aaaf3",
       "marker": "managed",
       "installed_at": "2026-05-15T09:09:28.397Z"
     },
