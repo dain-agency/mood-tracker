@@ -52,7 +52,7 @@ model MyModel {
 4. **Always use `@@schema("app")`** directive
 5. **UUIDs for primary keys** — `@id @default(uuid())`
 6. **Register in TENANT_SCOPED_MODELS** after creating the model
-7. **Run `npx {{orm_generate_cmd}}`** after any schema change — verify it succeeds
+7. **Run `{{orm_generate_cmd}}`** after any schema change — verify it succeeds
 8. **Enum values** should be UPPER_SNAKE_CASE
 9. **Field names** should be snake_case ({{orm}} convention)
 10. **Relation names** should be descriptive
@@ -65,7 +65,7 @@ Find `TENANT_SCOPED_MODELS` in the codebase and add the new model name.
 
 After completing your task:
 ```bash
-cd apps/api && npx {{orm_generate_cmd}}
+cd apps/api && {{orm_generate_cmd}}
 ```
 
 This must succeed with no errors. If it fails, fix the schema and retry.

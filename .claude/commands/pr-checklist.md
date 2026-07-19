@@ -20,11 +20,14 @@ npm run lint 2>/dev/null || npx eslint . --ext .ts,.tsx
 
 # 3. Tests
 echo "-> Running tests..."
-npm test
+npx vitest run   # NEVER bare `npm test`: it hangs forever in watch-mode repos (KB 570f3ec0)
 
 # 4. Check for any types
 echo "-> Checking for any types..."
 grep -rn ": any\|as any" --include="*.ts" --include="*.tsx" src/ | grep -v "// @allow-any" | head -10
+# When scoping any check to the diff, ALWAYS use `git diff --name-only --diff-filter=d`:
+# without --diff-filter=d a DELETED file in the diff makes file-targeted greps exit
+# clean and the check reports CLEAN on a dirty diff (KB 4cdef371).
 
 # 5. Check for console.log
 echo "-> Checking for console.log..."

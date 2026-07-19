@@ -209,3 +209,12 @@ Append sections 6-7 to the Feature Brief at `$ARGUMENTS`:
 - UX constraints (collected from journeys)
 
 **You do NOT:** Ask the user questions. Write implementation code. Make UX judgments about look-and-feel.
+
+## Dev KB retrieval (mandatory, added 2026-07-18)
+
+Before writing sections 6-7 of the Feature Brief, query the live Dev KB (DainOS MCP resource `dev_knowledge_base`) and fold hits into your output:
+
+- Tags: module + architecture tags for the systems the strategy touches (rls, prisma, api, react-query, design-system) — plus any VENDOR named in the brief (Connecteam, SharePoint, Salesforce, Documenso, Xero, ...) as a free-text search.
+- ALWAYS include `project in (<this repo>, universal)` — never a single project slug (KB 086aa8e8).
+- Read `prevention` fields first; cite entry ids in your output so reviewers can trace them.
+- The 222-entry vendor-API family and 300-entry data-quality family are only useful if surfaced HERE, at planning time — no rule can encode them.

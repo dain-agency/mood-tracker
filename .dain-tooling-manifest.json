@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "installed_at": "2026-05-13T11:50:57.748Z",
-  "last_upgrade_at": "2026-07-18T09:24:25.442Z",
-  "library_snapshot_date": "2026-07-18",
+  "last_upgrade_at": "2026-07-19T09:50:59.605Z",
+  "library_snapshot_date": "2026-07-19",
   "tooling_version": "0.2.4",
   "project": {
     "name": "mood-tracker",
@@ -41,8 +41,8 @@
     {
       "slug": "agent-migration-specialist",
       "target_path": ".claude/agents/migration-specialist.md",
-      "library_version": 1,
-      "installed_sha": "c3e8b3251a6ff5a2e443503ea53cd659883e049b527078b469ba81745da1c6b2",
+      "library_version": 2,
+      "installed_sha": "91cedb81db8e18655ce954825e6ade955199e56039a45e35f3ac6a26ed583d42",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
@@ -73,10 +73,18 @@
     {
       "slug": "agent-ship-db-builder",
       "target_path": ".claude/agents/ship-db-builder.md",
-      "library_version": 3,
-      "installed_sha": "9b2d0a10889ceb05f424296c2c494dc4e61e056124a523d11c7b10c7055be74c",
+      "library_version": 4,
+      "installed_sha": "d3bb8b81f674c401e1bdec46cccf0898c627be6a20824d874941803e124462a3",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.729Z"
+    },
+    {
+      "slug": "agent-ship-foreman",
+      "target_path": ".claude/agents/ship-foreman.md",
+      "library_version": 1,
+      "installed_sha": "f20c9429ef6e7a83820bf6cb0208c0d881c40d22c5a250fbbc353fcb39bc16d4",
+      "marker": "managed",
+      "installed_at": "2026-07-19T09:50:59.605Z"
     },
     {
       "slug": "agent-ship-quality-reviewer",
@@ -159,6 +167,14 @@
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
     {
+      "slug": "cmd-ddd-generation",
+      "target_path": ".claude/commands/ddd-generation.md",
+      "library_version": 1,
+      "installed_sha": "a1177bdd55e893f97e37e9be8189bcf948ea72de9984f98f519e70be71255672",
+      "marker": "managed",
+      "installed_at": "2026-07-19T09:50:59.605Z"
+    },
+    {
       "slug": "cmd-debug",
       "target_path": ".claude/commands/debug.md",
       "library_version": 1,
@@ -207,12 +223,28 @@
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
     {
+      "slug": "cmd-invoke",
+      "target_path": ".claude/commands/invoke.md",
+      "library_version": 4,
+      "installed_sha": "0f84d5fe1430c79e3f3357f732e6fa8f9286da6a2e03860f65683e001a886432",
+      "marker": "managed",
+      "installed_at": "2026-07-19T09:50:59.605Z"
+    },
+    {
       "slug": "cmd-migrate-app",
       "target_path": ".claude/commands/migrate-app.md",
       "library_version": 1,
       "installed_sha": "eb836b0c79b98c4b6c6e4abf9c03ddfec4cd75ba32c5c6d69cfc32b3888d7a4d",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
+    },
+    {
+      "slug": "cmd-migrate-resume",
+      "target_path": ".claude/commands/migrate-resume.md",
+      "library_version": 1,
+      "installed_sha": "09237e05b8769f9ef3ce55fd061538e04bd9ff6ee41cdbe726d03a8c26604d9e",
+      "marker": "managed",
+      "installed_at": "2026-07-19T09:50:59.605Z"
     },
     {
       "slug": "cmd-new-feature",
@@ -225,8 +257,8 @@
     {
       "slug": "cmd-pr-checklist",
       "target_path": ".claude/commands/pr-checklist.md",
-      "library_version": 1,
-      "installed_sha": "c03cf8eb01054887d7162d2afc53d2466b452f5b40499e17fc99d3ff3e8bc7c4",
+      "library_version": 2,
+      "installed_sha": "2ba1b16b302b2888534daf706d92892517fb9f1e28be3c6d37b957e4c96e7ec2",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.732Z"
     },
@@ -269,6 +301,14 @@
       "installed_sha": "484350ca294959e18a5742be30425ed85846774aae694754c55da6b9a032af78",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.733Z"
+    },
+    {
+      "slug": "cmd-schema-check",
+      "target_path": ".claude/commands/schema-check.md",
+      "library_version": 1,
+      "installed_sha": "83e5303cff4b93b52aee855ed33350c85f9c7f6e5a479807f741ae43a94469b8",
+      "marker": "managed",
+      "installed_at": "2026-07-19T09:50:59.605Z"
     },
     {
       "slug": "cmd-ship",
@@ -327,10 +367,18 @@
       "installed_at": "2026-05-13T11:50:57.735Z"
     },
     {
+      "slug": "hook-block-claire-typo",
+      "target_path": ".claude/hooks/block-claire-typo.sh",
+      "library_version": 1,
+      "installed_sha": "b6ebffea38b8422c6197e38fb1a9b6da3a2d5773e754caa5c9c592dda6d5b493",
+      "marker": "managed",
+      "installed_at": "2026-07-19T09:50:59.605Z"
+    },
+    {
       "slug": "hook-block-dangerous",
       "target_path": ".claude/hooks/block-dangerous.sh",
-      "library_version": 2,
-      "installed_sha": "d7635447beccaed7c6dedc5481acee3df439c92646586105f1e7fd0f556c0750",
+      "library_version": 4,
+      "installed_sha": "9d95b935d800bd6ac8d68e7f2fffb14cc154116a45aaa97675943fe64e71d898",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.735Z"
     },
@@ -361,16 +409,16 @@
     {
       "slug": "hook-commit-lint",
       "target_path": ".claude/hooks/commit-lint.sh",
-      "library_version": 1,
-      "installed_sha": "3449801ebe96a76f9a5c74f7a9860185570e70c423de0c84e4a8bf903e66fccd",
+      "library_version": 2,
+      "installed_sha": "41fcb8cf92b7aa6ff9288ad868d0fd76459f2307cd0b286a3760b8472fc28788",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.736Z"
     },
     {
       "slug": "hook-error-handling",
       "target_path": ".claude/hooks/error-handling.sh",
-      "library_version": 1,
-      "installed_sha": "748a373e2149df3c1e9987a6c324475608bd520e90fa1899ea9c063471b3b91c",
+      "library_version": 3,
+      "installed_sha": "75fdf7a18b1f0ee8a189f1c3008834841d3f28ec442694dc437e1a7ed57894cf",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
@@ -441,8 +489,8 @@
     {
       "slug": "hook-placeholder-check",
       "target_path": ".claude/hooks/placeholder-check.sh",
-      "library_version": 1,
-      "installed_sha": "9c12f6b20c731f870c932c6ee7633e6083f45a1a2d9c9b2d8034206586af11a2",
+      "library_version": 2,
+      "installed_sha": "3231e4979b011a308bc95f986f08c3a3e5af88388f9f7bb816e9a042192c0662",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.739Z"
     },
@@ -489,16 +537,16 @@
     {
       "slug": "hook-security-scan",
       "target_path": ".claude/hooks/security-scan.sh",
-      "library_version": 1,
-      "installed_sha": "2ee18a7a5a7e3cf33bb69695f2aaa12d80fc686e0df3dfc1e134a341c105b6ed",
+      "library_version": 2,
+      "installed_sha": "b99b5bf7651674828452b99523263471f4cc18e9cda78cbedbf417cf71ebb06c",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.741Z"
     },
     {
       "slug": "hook-session-start",
       "target_path": ".claude/hooks/session-start.sh",
-      "library_version": 1,
-      "installed_sha": "52ded7271deaf1521b6fdcdad72c85f5780cbbd80fc92225b7e3ab45e80713c6",
+      "library_version": 2,
+      "installed_sha": "52fa3fef10e1e1961889ca9749ee32bf4148ecb1730dd2ea4886054d55b76398",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.741Z"
     },
@@ -537,16 +585,16 @@
     {
       "slug": "hook-tsc-on-commit",
       "target_path": ".claude/hooks/tsc-on-commit.sh",
-      "library_version": 1,
-      "installed_sha": "9a1204f3e358c6b96af098db348aba40c17b6a912c1cfedae29d3903c300b1f7",
+      "library_version": 2,
+      "installed_sha": "ffa3187cde139550340b7d25405c0fcd1f18fa62a0511a6d664d439fe840c1da",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
     {
       "slug": "hook-type-safety",
       "target_path": ".claude/hooks/type-safety.sh",
-      "library_version": 1,
-      "installed_sha": "7893e21a29d5146e89a7804dcb114db227bd2436ad7c17cb1183e0ac0fcffd66",
+      "library_version": 2,
+      "installed_sha": "08c39d14138612dfe099cca5aaa9cebc7d6499f422e30766e45bf2fa9f7177e3",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.742Z"
     },
@@ -593,24 +641,24 @@
     {
       "slug": "rule-design-system",
       "target_path": ".claude/rules/design-system.md",
-      "library_version": 1,
-      "installed_sha": "5b034708bbe9f858d746e8253da23763d725b39aa99ed6f7a48ef8cb767ad27c",
+      "library_version": 2,
+      "installed_sha": "45cea3ae52d49971197e4bc35ab15947f2855b1a240d32dec26d9540764baf3d",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.743Z"
     },
     {
       "slug": "rule-gotchas-gate",
       "target_path": ".claude/rules/gotchas-gate.md",
-      "library_version": 1,
-      "installed_sha": "cddc80d40a39c44da3b69c11ba19ad70910c7bd50398eec40d67fe0152710464",
+      "library_version": 2,
+      "installed_sha": "d0e8b1226cfac148e803cb75c8edcc80bb51ef8d49c533d155d50ff9b0724955",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.744Z"
     },
     {
       "slug": "rule-instruction-library-canonical",
       "target_path": ".claude/rules/instruction-library-canonical.md",
-      "library_version": 2,
-      "installed_sha": "62d75d3d5242a95a5c01478b81344d774d3d0173a10ba8498cce77152b8cf606",
+      "library_version": 6,
+      "installed_sha": "f007b2f65910f10773098abbf6c7963bfcc02b033915879dae07b0455acb47e8",
       "marker": "managed",
       "installed_at": "2026-06-01T09:55:34.081Z"
     },
@@ -697,24 +745,24 @@
     {
       "slug": "skill-database-gotchas",
       "target_path": ".claude/skills/database-gotchas/SKILL.md",
-      "library_version": 1,
-      "installed_sha": "f74cec28b0e985660fb9aa54a7f3aeb0574385c7dfb36920c781497a7b56020f",
+      "library_version": 2,
+      "installed_sha": "02c95873bf2f5aff71736c7fb25cf1eaa9bc2c7f8cda40e9bec785be68861bce",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.745Z"
     },
     {
       "slug": "skill-frontend-gotchas",
       "target_path": ".claude/skills/frontend-gotchas/SKILL.md",
-      "library_version": 2,
-      "installed_sha": "321d03ee5fce4d6e2d2fe4c76efbe522864f2ffe8f7396fd18c84b1441999b7d",
+      "library_version": 3,
+      "installed_sha": "7a3127f914edb66e4ef7142fb4e976804aa3674166628f73e202a63c9dec8e60",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.745Z"
     },
     {
       "slug": "skill-gotchas",
       "target_path": ".claude/skills/gotchas/SKILL.md",
-      "library_version": 2,
-      "installed_sha": "c773aa9c426702b1312859a0d1cc95da343a93f8eadc9540e26a8273ca3cfc3e",
+      "library_version": 3,
+      "installed_sha": "f7bd12499c75944d08f3c85b6d713273854895c438a4d01fd7a00f9dd3023d1b",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
@@ -785,8 +833,8 @@
     {
       "slug": "skill-ship-architect",
       "target_path": ".claude/agents/ship-architect.md",
-      "library_version": 5,
-      "installed_sha": "94893adccd4f373b72fce3fafddb29d948feac8e92eca41694ebf07a36ba33c6",
+      "library_version": 6,
+      "installed_sha": "3a1ceb7b64032b2869bdfc9b63c940592bf0b7ff874afd9f7d2b2b78d1067020",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
@@ -817,16 +865,16 @@
     {
       "slug": "skill-ship-foreman",
       "target_path": ".claude/skills/ship-foreman/SKILL.md",
-      "library_version": 9,
-      "installed_sha": "c9f0157aa5dbe0444cbfb832933a5531305ea411a05c8ee6d9b3e11c5543f168",
+      "library_version": 10,
+      "installed_sha": "21ef827d6b50e842db22b25e9847da37d8eb8aea6bf90fb043034c0dc3f9ac43",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
     {
       "slug": "skill-ship-plan-writer",
       "target_path": ".claude/agents/ship-plan-writer.md",
-      "library_version": 5,
-      "installed_sha": "63c2e02e8eb4806e072db96655d8679706467039ed790b4cf871eb17422123e9",
+      "library_version": 6,
+      "installed_sha": "0b5c738e478b732b77c7d9c4f698967cf1407b20897dc1fb7731568e07c4fb45",
       "marker": "managed",
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
@@ -873,8 +921,8 @@
     {
       "slug": "skill-storybook-gotchas",
       "target_path": ".claude/skills/storybook-gotchas/SKILL.md",
-      "library_version": 1,
-      "installed_sha": "74810a63614d342023912460b006ae31aa52dd43e6e96ddb14f43339cbcbb0fe",
+      "library_version": 2,
+      "installed_sha": "d069c9bdf63eef30fd0c936f4bde1ddd114827dd93ab0b4a27fb5d07d9cef599",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.746Z"
     },

@@ -124,3 +124,12 @@ Write the task manifest to `docs/plans/YYYY-MM-DD-<feature>-tasks.json`.
 - No circular dependencies
 - Every output file has exactly one task that creates it
 - Every task touching a Step 4b trigger carries `modelEscalation`, and `escalatedTasks` in the metadata matches the flagged set exactly
+
+## Dev KB retrieval (mandatory, added 2026-07-18)
+
+Before decomposing the Feature Brief into the task manifest, query the live Dev KB (DainOS MCP resource `dev_knowledge_base`) and fold hits into your output:
+
+- Tags: module tags matching the touched domains (react, nextjs, prisma, rls, supabase, zod, storybook, ci) — plus any VENDOR named in the brief (Connecteam, SharePoint, Salesforce, Documenso, Xero, ...) as a free-text search.
+- ALWAYS include `project in (<this repo>, universal)` — never a single project slug (KB 086aa8e8).
+- Read `prevention` fields first; cite entry ids in your output so reviewers can trace them.
+- The 222-entry vendor-API family and 300-entry data-quality family are only useful if surfaced HERE, at planning time — no rule can encode them.
