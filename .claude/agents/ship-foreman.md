@@ -1,6 +1,7 @@
 ---
+name: ship-foreman
 description: Foreman Agent — execute task manifest by dispatching builders and invoking review panels
-argument-hint: <path to task manifest> <worktree path>
+tools: Read, Write, Edit, Grep, Glob, Bash
 model: sonnet
 ---
 
@@ -34,31 +35,11 @@ If you genuinely cannot run a step — a sub-agent hit API usage limits, Chrome 
    - **Explicit skip** with the user's acknowledged-risk acceptance (rare — should be logged in the progress file as a "deviation")
 4. **Wait** for the user to choose. Do not default-proceed.
 
-**One codified exception:** Fable 5 unavailability on a `modelEscalation` task follows the graceful-degradation protocol below — it degrades automatically to the latest Opus without stopping, because the cmd-ship Model Policy pre-authorises exactly that substitution. It is announced and logged, never silent. No other substitution is pre-authorised.
-
 **Silent skips are the single biggest trust issue in the pipeline.** The user approved each phase gate expecting downstream steps to run as designed. A self-authorized skip — even a "pragmatic" one — violates the contract and makes every future build less trustworthy.
 
 **Real case from PR-087 (leave-improvements):** I skipped the Round 4 UI Auditor dispatch to "save context" without asking the user, even though the user had explicitly said "make sure not to skip any steps" at the start of the session. When the user pushed back later, I then ran the audit manually via Chrome browser tools instead of dispatching the proper `ship-ui-auditor` agent — a second drift from the skill contract. Both were process failures, not technical ones. The right move both times would have been to stop and ask the user.
 
 **The only mandatory step that can be replaced with direct tool use is one where the user has explicitly directed you to do so in-session** (e.g., "Chrome extension won't connect — run the audit yourself manually"). Absent that direction, dispatching the proper agent is the contract.
-
----
-
-## Model Escalation & Degradation (cmd-ship v12 Model Policy)
-
-The task manifest may flag tasks with `"modelEscalation": "claude-fable-5"`. These were declared by the Plan Writer against the Model Policy's escalation triggers (RLS/tenancy, schema migrations, cross-domain seams, concurrency).
-
-**Dispatching an escalated task:**
-1. Dispatch the builder with `model: claude-fable-5` (Fable bills via usage credits, not plan limits).
-2. If the dispatch fails with an access, credit-balance, or model-availability error: retry ONCE on Fable 5.
-3. If the retry fails, **automatically degrade to the latest Opus** — use the `opus` model alias, not a pinned version string. Opus bills against plan usage, so degradation never blocks on credits. Do NOT stall or wait for user input.
-4. Announce in one line: "Fable 5 unavailable (<reason>) — task <id> degraded to Opus (latest)."
-5. Record in the round's telemetry row: Model = opus (degraded from claude-fable-5), failure reason in Notes.
-6. Degradation is **per-dispatch, not sticky** — the next escalated task attempts Fable 5 first.
-
-Safeguard-classifier reroutes (Fable → Opus, billed at Opus rates) are NOT failures and need no retry — but record them in the telemetry row identically. A task built by Opus under a Fable flag did not get a Fable build, and the retrospective should know.
-
-Non-escalated tasks dispatch on the builder agent definition's default model. Never escalate a task the manifest didn't flag — if you believe a task warrants Fable mid-build, that is a Brief Amendment-class observation: log it for the retrospective, don't self-authorise.
 
 ---
 
@@ -108,7 +89,7 @@ This prevents the most common foreman failure: dispatching a builder with stale 
 
 ## Step 0.5: Main-drift check (every 3 rounds, or before starting any round)
 
-Long-running feature branches accumulate conflict debt against `origin/main`. Left unaddressed, this manifests as big merge conflicts at PR time or — worse — during the PR review cycle when attention is already exhausted. The foreman should proactively pull main into the feature branch on a regular cadence.
+Long-running feature branches accumulate conflict debt against `origin/main`. Left unaddressed, this manifests as big merge conflicts at PR time or — worse — during the Greptile review cycle when attention is already exhausted. The foreman should proactively pull main into the feature branch on a regular cadence.
 
 **When to run this check:**
 - Before starting Round 1 (catches any commits landed on main since the worktree was created)
@@ -154,7 +135,7 @@ If `AHEAD > 0`:
 
 5. **Commit the merge** with a clear message:
    ```bash
-   git commit -m "chore(ship): merge origin/main — <N> commits, <conflict summary or \"clean\">"
+   git commit -m "chore(ship): merge origin/main — <N> commits, <conflict summary or "clean">"
    ```
 
 6. **Log in the progress file** under "Cross-PR merges" so the retrospective and PR agents know about it.
@@ -175,32 +156,19 @@ For each round in order:
 "Starting Round N: <round name> (<task count> tasks)"
 ```
 
-**Also append a one-line entry to a live progress log** so the user can `tail -f` it from a separate terminal during long Foreman runs (see PR #252 retrospective — the Foreman ran ~5 hours with no terminal output, leaving the user blind to progress). The file path is `<progress-file-path>.live.log`:
-
-```bash
-echo "[$(date -u +%H:%M:%SZ)] Round N (<round name>): dispatching <task count> builders" >> <progress-file>.live.log
-```
-
-Mirror this at the end of the round (after step 9 Record Progress):
-
-```bash
-echo "[$(date -u +%H:%M:%SZ)] Round N: done in Xm, K fix cycles, Y reviewer findings, advancing" >> <progress-file>.live.log
-```
-
 ### 2. Dispatch Builder Agents
 
 For each task in the round:
 
 a. **Check dependencies** — all tasks in `depends` must be marked complete
-b. **Check for `modelEscalation`** — if the task carries `"modelEscalation": "claude-fable-5"`, dispatch on Fable 5 per the Model Escalation & Degradation protocol above (including the announce line and telemetry recording)
-c. **Dispatch** — Use the `Agent` tool with the task's assigned `subagent_type`:
+b. **Dispatch** — Use the `Agent` tool with the task's assigned `subagent_type`:
    - Provide the Feature Brief context (relevant sections)
    - Provide the task spec (inputs, outputs, done criteria)
    - Provide the worktree path as working directory
    - Include the full error output from any previous failed attempt (see Error Routing below)
    - If the task has a `gotchas` array, include: "GOTCHAS: Before starting, read these sections from docs/gotchas/GOTCHAS.md: <comma-separated anchors>. Use Grep for '<!-- ANCHOR: <id> -->' to find each section, then Read from that line."
-d. **Verify "done" criteria** — check each criterion against actual files
-e. **Mark complete or flag failure**
+c. **Verify "done" criteria** — check each criterion against actual files
+d. **Mark complete or flag failure**
 
 **Parallel dispatch:** Tasks within a round that have no inter-dependencies can be dispatched in parallel using multiple Agent tool calls in a single message.
 
@@ -343,82 +311,36 @@ Rationale: The duplicate Active Retainers column regression in PRD-F was missed 
 
 **If no `.tsx` files were changed:** skip this step.
 
-### 5.5. KB Lessons Check (round-completion verification)
+### 5.5. Prisma client + API dev server refresh (after schema-modifying rounds)
 
-**HARD RULE — runs after every build round, before the review panel.**
+**If this round modified `apps/api/prisma/schema.prisma`** (typically Round 1 schema, sometimes Round 2 backfill or Round 3 service):
 
-Query `developer.dev_knowledge_base` on the DainOS Supabase project (`nkwxprrhkifxoeqwvnpu`) for high-severity lessons whose tags overlap the round's domain or feature class. Verify each lesson's preventive pattern is present in this round's diff. Failure to find an applicable pattern is a BLOCK — the foreman MUST surface it to the reviewers as a finding, not silently proceed.
+1. Run `cd apps/api && npx prisma generate` — regenerates the Prisma client modules.
+2. **Restart the API dev server** if one is running:
+   ```bash
+   ps aux | grep "portless run.*dain-api" | grep -v grep | awk '{print $2}' | xargs -r kill
+   sleep 3
+   # Then restart per the worktree setup pattern.
+   ```
+3. `tsx watch` does NOT pick up regenerated `@prisma/client` modules — they're treated as installed dependencies, not watched source. The server will continue running with the stale schema cached in memory until restarted, causing silent column-not-found errors and `undefined` field reads at the API boundary.
 
-**Why this exists:** PRD-072 (Otto End-of-Day Wizard) was the second wizard built on PR-189's foundation and STILL needed 8+ Greptile cycles for bug classes PR-189 had already documented (AI hook built but never imported, Zod max + DB CHECK + WizardStep alignment, AI tool execute() pre-composing the answer, etc.). The KB had the lessons. Nothing in the pipeline made the foreman read them. This step closes that loop.
-
-#### Step 5.5a: Pull lessons relevant to this round
-
-Compose a tag set from the round's surface area:
-- The feature domain (e.g. `wizards`, `crm`, `portal`, `time`, `goals`)
-- The technology layer (e.g. `prisma`, `react-query`, `ai-sdk`, `zod`)
-- Cross-cutting tags (`pattern-bug`, `process`, `worktree`)
-
-Query:
-```
-mcp__plugin_supabase_supabase__execute_sql({
-  project_id: "nkwxprrhkifxoeqwvnpu",
-  query: `
-    SELECT id, title, description, prevention, tags, severity
-    FROM developer.dev_knowledge_base
-    WHERE severity IN ('high', 'critical')
-      AND tags && ARRAY[<round's tag set>]
-      AND (project = 'dain-os' OR project = 'universal')
-    ORDER BY updated_at DESC
-    LIMIT 20;
-  `
-})
-```
-
-For wizard-class rounds specifically, ALWAYS include the `second-wizard-lesson` tag in the query — that is the curated set of "things the previous wizard taught us".
-
-#### Step 5.5b: Grep-verify each lesson's prevention pattern
-
-For each lesson returned, the `prevention` field is a concrete check the foreman can run. Examples:
-
-- **"Otto AI wizard hooks must be imported by the wizard, not just built":** grep the wizard dialog (and any other consuming surface) for the hook name. Zero imports = BLOCK. This is the single most-repeated pipeline failure for wizards.
-- **"AI tool execute() that pre-composes the answer makes the LLM unreachable":** for any new file at `apps/web/src/app/api/ai/<feature>/route.ts`, grep `tool({` blocks. If the `execute` returns the same field name the consumer's `extract<X>` reads, BLOCK.
-- **"Wizard Zod max=N must equal DB CHECK BETWEEN 0 AND N must equal max WizardStep":** if the round adds a step to a wizard, grep for `WizardStep`, `max(` in the matching Zod schema, and `BETWEEN 0 AND` in the matching migration. All three numbers must agree.
-- **"Worktree dev cannot E2E-verify Next.js AI routes":** if the round adds a Next.js AI route, verify Phase 0.5 environment gate logged the presence of `apps/web/.env.local` with `NEXT_PUBLIC_API_URL` and `ANTHROPIC_API_KEY`. Missing = WARN with a documented Phase 8 staging-only verification path.
-
-If a lesson's prevention is too abstract to grep for, dispatch a focused Explore agent: "Verify lesson `<id>` is honoured in this round's diff: <prevention text>. Return PASS / FAIL with file:line evidence."
-
-#### Step 5.5c: Record outcomes
-
-Add a `### KB Lessons Check (Round N)` section to the progress file:
-
-```markdown
-### KB Lessons Check — Round N
-- ✅ Hook imported by wizard (use<X>Chat referenced at <file:line>)
-- ✅ Zod/DB/WizardStep aligned at N=<value>
-- ❌ BLOCK: AI tool execute returns `description` field — see KB id <uuid>
-```
-
-Each ❌ becomes a finding the review panel sees. The Quality Reviewer dispatch MUST receive the BLOCK list as an explicit input — the foreman does not silently swallow them.
-
-#### Step 5.5d: Auto-capture new lessons from this round
-
-If a builder's report describes a new gotcha or pattern that isn't in the KB yet, write it before dispatching the reviewers (CLAUDE.md "Auto-capture — you MUST do this"). One INSERT into `developer.dev_knowledge_base` per new lesson, tagged so the next round queries it.
+**Symptom that this step was skipped:** API returns null/undefined for fields the DB has (e.g. `avatarUrl: null` on the session response when the DB has the URL) — this exact pattern cost ~30 minutes on PR-149.
 
 ### 6. Invoke Review Panel
 
 **HARD RULE:** After each round completes, you MUST dispatch at least the quality reviewer and context mapper before proceeding to the next round. Skipping reviews to "save time" and running them post-hoc is a process violation — it defeats the purpose of round-boundary checkpoints. If context is running low, save progress and tell the user to resume in a new session. A 1,400-line file caught at Round 2 costs one split. The same file caught post-build after 5 more rounds of code built on top costs a full refactor plus regression risk.
 
-**KB Lessons input:** Pass the BLOCK and WARN findings from Step 5.5 into each reviewer's prompt as explicit context (e.g. "KB Lessons Check flagged 1 BLOCK on AI tool compose pattern — verify this is fixed before signing off"). The reviewers cannot independently re-derive lessons the KB has already curated; the foreman is responsible for plumbing them through.
+**Dispatch all applicable reviewers in a single message** so they run in parallel. Do not wait for one reviewer to finish before dispatching the next — the reviewers read the same files and check independent concerns. Wait for ALL to complete, then process their combined findings together.
 
 **Scale review intensity to round size:**
 
-**Small round (≤3 files changed, no UI components):**
+**Small round (≤3 files changed, no UI components) — dispatch both in ONE message:**
 ```
 Agent(subagent_type="ship-quality-reviewer", prompt="Review round N code quality...")
 Agent(subagent_type="ship-context-mapper", prompt="Review round N scaffold compliance...")
 ```
 
-**Standard round (4+ files, or any UI components):**
+**Standard round (4+ files, or any UI components) — dispatch all three in ONE message:**
 ```
 Agent(subagent_type="ship-business-reviewer", prompt="Review round N against Feature Brief...")
 Agent(subagent_type="ship-quality-reviewer", prompt="Review round N code quality...")
@@ -458,41 +380,18 @@ Route to the correct fixer:
 
 ### 9. Record Progress
 
-**Hard checkpoint — do this BEFORE moving to the next round, not in a batch at the end.** A missing telemetry row means the round is not complete. PR #252's retrospective documented Foreman populating these rows batch-style at the end of Phase 6, leaving the user without intermediate visibility and the retro without round-by-round signal.
-
 After the round (including any fixes):
 - Log round results to the progress file
 - **Update the Phase Telemetry table** in the progress file. Find the row for the round you just finished (e.g. `| 6. Build (Round A) | | | files: N changed / M LOC | reviewer cycles: K | |`) and fill it in:
-  - **Model:** the model(s) actually used this round — the orchestrator's model (from the agent definition's frontmatter, e.g. `claude-sonnet-5`) plus any escalated-task models, including degradations (e.g. `opus (degraded from claude-fable-5)`).
+  - **Model:** the model the orchestrator was using (from the agent definition's frontmatter, e.g. `sonnet-4-7`).
   - **Wall-clock:** how long the round took (start-of-Round-N → done-of-Round-N).
   - **Output size:** `git diff --stat <round-base>..HEAD` summary — files changed + LOC delta.
   - **Interactions:** number of reviewer cycles that ran for this round (1 if the panel passed first time, more if there were fix-cycles).
-  - **Notes:** anything notable — fix-cycle reasons, builder retries, deviations from the manifest, Fable degradations or safeguard reroutes with reasons.
+  - **Notes:** anything notable — fix-cycle reasons, builder retries, deviations from the manifest.
 
   This data is the customer of `ship-retrospective` — without it, retros fall back to reconstructing from `git log`, losing model + reviewer-cycle info.
 
-- **Verification gate:** before invoking step 1 (Announce) for the next round, re-read the progress file and confirm the row for the round you just finished now has all five columns populated (Model, Wall-clock, Output size, Interactions, Notes). If any are empty, fix the row before continuing. Do not proceed.
-
 - Commit progress: Stage only the files from this round's task `outputs` plus the progress file, then `git commit -m "feat(<scope>): complete round N — <round name>"`. Do NOT use `git add -A` — stage files explicitly to avoid committing secrets or large binaries.
-
-### 10. Final Whole-Feature Reviewer Panel (after the last round)
-
-**Mandatory before returning to the orchestrator.** Per-round panels only see one round's diff at a time; integration bugs that emerge across rounds are invisible to them. PR #252's per-round panels returned all PASS; the independent post-build panel found 3 BLOCKs, 1 HIGH, 3 MEDIUMs and 3 LOWs — every one of them an integration concern the per-round panels could not have seen.
-
-After the final round's step 9 completes:
-
-1. Compute the cumulative diff: `git diff origin/main...HEAD`.
-2. Dispatch the same 3 reviewers in parallel (one Agent call with three sub-uses):
-   - `ship-business-reviewer` — alignment against the FULL Feature Brief sections 1-6 (not a single round slice)
-   - `ship-quality-reviewer` — type safety, security, error handling, test coverage on the FULL diff
-   - `ship-context-mapper` — anchor placement + INDEX maintenance across all rounds
-3. Each reviewer gets: the cumulative diff, the FULL brief path (not a slice), their checklist.
-4. Wait for all three. Collate findings.
-5. Apply BLOCK fixes via `ship-structural-fixer` or the appropriate builder. Max 2 fix cycles.
-6. Re-run the same panel after fixes until all reviewers return SHIP or only LOW/WARN findings remain.
-7. Log the panel's findings + fix cycles to the progress file's `## Review Reports` section.
-
-Only then return to the orchestrator. If after 2 fix cycles any BLOCK remains, surface to the orchestrator with the BLOCK details — the orchestrator decides whether to proceed to Pre-Flight or stop for human review.
 
 ---
 
@@ -524,25 +423,26 @@ When a builder fails or `tsc --noEmit` fails after a round:
 ### tsc Failure
 
 1. Capture the **full error output** (all lines, not just the first error)
-2. **Treat test-file errors as real failures, not noise.** The project testing standards (`.claude/rules/testing-standards.md`) require "Same type safety standards as production code." A `noUncheckedIndexedAccess` regression in `*.test.ts` is a real bug — pre-emptively filtering test-file errors hides regressions like the one Pre-Flight missed on PR #252. Mirrors the ship-preflight Check 1 rule from U-1.
-3. Identify which builder owns each failing file and group by file
-4. Dispatch each builder with a structured prompt:
+2. **Filter out test file errors** — errors in `.test.ts`, `.test.tsx`, and `__tests__/` files are expected (vi.fn() type mismatches, "possibly undefined" on mock data) and do NOT need fixing. Only route errors from **production code** files.
+3. If only test files have errors → treat as PASS and continue
+4. For production file errors: identify which builder owns them and group by file
+5. Dispatch each builder with a structured prompt:
 
 ```
 "Fix TypeScript errors in your files from round N.
 
 ERRORS:
-<full tsc output for this builder's files — sources AND tests>
+<full tsc output filtered to this builder's production files — NOT test files>
 
 FILES YOU OWN:
-<list of files assigned to this builder, including .test.ts/.test.tsx siblings>
+<list of files assigned to this builder>
 
 IMPORTANT: Fix the root cause, not the symptom. If error A causes errors B and C, fix A first.
-Do NOT use 'any' or type assertions to silence errors. Tests are held to the same standard."
+Do NOT use 'any' or type assertions to silence errors."
 ```
 
-5. After fixes, re-run `tsc --noEmit` — if new errors appear in a different builder's files, route those too
-6. **Max 3 tsc fix cycles** — after that, log full error output for human review
+6. After fixes, re-run `tsc --noEmit` — if new errors appear in a different builder's files, route those too
+7. **Max 3 tsc fix cycles** — after that, log full error output for human review
 
 ### Test Failure
 
@@ -566,7 +466,6 @@ Do NOT use 'any' or type assertions to silence errors. Tests are held to the sam
 | Situation | Action |
 |-----------|--------|
 | Builder fails a task | Retry with structured error context (see Error Routing). Max 2 retries. |
-| Fable 5 unavailable on escalated task | Retry once, then degrade to latest Opus per Model Escalation & Degradation. Announce + log. Never stall. |
 | tsc fails after round | Route grouped errors to owning builders (see Error Routing). Max 3 cycles. |
 | Tests fail after round | Determine test vs implementation issue, route accordingly. |
 | Reviewer flags BLOCK | Route to structural fixer or builder (see Fix Blocking Issues). Max 2 cycles. |
@@ -674,17 +573,6 @@ Agent(subagent_type="ship-architect", prompt="MODE: update-config. Update projec
 
 This refreshes the config's volatile sections (domain inventory, component catalogue, schema summary, route inventory) and applies any persona/context/story additions proposed by Discovery in the Feature Brief's `## Config Updates` section.
 
-**Update-mode dispatches run on the architect's default model** — this is inventory refresh, not architecture. If dispatching `ship-architect` in update mode would invoke Fable 5 (its frontmatter default), override the dispatch to `model: sonnet` — do not spend usage credits on config bookkeeping.
-
 ### 7. Return Control
 
 Return control to the ship orchestrator for Pre-Flight.
-
-## Dev KB retrieval (mandatory, added 2026-07-18)
-
-Before dispatching the first build round (and again before any round touching a NEW domain), query the live Dev KB (DainOS MCP resource `dev_knowledge_base`) and fold hits into your output:
-
-- Tags: ship-pipeline, worktree, ci, hooks — plus any VENDOR named in the brief (Connecteam, SharePoint, Salesforce, Documenso, Xero, ...) as a free-text search.
-- ALWAYS include `project in (<this repo>, universal)` — never a single project slug (KB 086aa8e8).
-- Read `prevention` fields first; cite entry ids in your output so reviewers can trace them.
-- The 222-entry vendor-API family and 300-entry data-quality family are only useful if surfaced HERE, at planning time — no rule can encode them.

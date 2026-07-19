@@ -38,7 +38,7 @@ if [[ "$command" =~ -F\ +([^\ ]+) ]] || [[ "$command" =~ --file\ +([^\ ]+) ]]; t
         # File doesn't exist yet or can't read -- allow
         exit 0
     fi
-elif [[ "$command" =~ \<\<[\']\''^EOF ]]; then
+elif [[ "$command" =~ \<\<.{0,3}EOF ]]; then
     # Heredoc style: first content line after the <<EOF marker is the subject
     message=$(echo "$command" | sed -n '/<<.*EOF/{n;p;q;}')
     if [[ -z "$message" ]]; then

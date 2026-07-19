@@ -23,6 +23,16 @@ if [[ "$file_path" =~ \.(test|spec)\.(ts|tsx)$ ]] || [[ "$file_path" =~ __tests_
     exit 0
 fi
 
+# Skip files that opt out via a top-of-file directive. The directive must
+# appear in the first 20 lines, in a comment, with a short justification.
+# Format: // @hook-skip:type-safety <reason>
+# Use this only for instructional .ts files where prose about types (e.g.
+# system prompts for an LLM reviewer) trips the regexes. .md files are
+# already excluded by the extension check above.
+if [[ -f "$file_path" ]] && head -20 "$file_path" 2>/dev/null | grep -q "@hook-skip:type-safety"; then
+    exit 0
+fi
+
 violations=""
 
 # =============================================================================
@@ -30,13 +40,13 @@ violations=""
 # =============================================================================
 if [[ -f "$file_path" ]]; then
     # Check for : any (but not in comments or strings)
-    any_matches=$(grep -n ": any" "$file_path" 2>/dev/null | grep -v "// @allow-any" | grep -v "^\s*//" | head -5 || true)
+    any_matches=$(grep -nE ':[[:space:]]*any\b' "$file_path" 2>/dev/null | grep -v "// @allow-any" | grep -v "^\s*//" | head -5 || true)
     if [[ -n "$any_matches" ]]; then
         violations+="\nEXPLICIT 'any' TYPE DETECTED (BLOCKING)\n$any_matches\n\nReplace with proper types:\n  - Specific types: string, number, boolean, etc.\n  - unknown + type guards for truly unknown data\n  - Generics <T> for flexible typing\n  - Interface/type definitions for objects\n"
     fi
 
     # Check for 'as any' assertions
-    as_any_matches=$(grep -n "as any" "$file_path" 2>/dev/null | grep -v "// @allow-any" | head -3 || true)
+    as_any_matches=$(grep -nE '\bas[[:space:]]+any\b' "$file_path" 2>/dev/null | grep -v "// @allow-any" | head -3 || true)
     if [[ -n "$as_any_matches" ]]; then
         violations+="\n'as any' TYPE ASSERTION DETECTED (BLOCKING)\n$as_any_matches\n\nThis bypasses type safety entirely. Instead:\n  - Fix the underlying type mismatch\n  - Use proper type guards\n  - Create a more specific type assertion (as SomeType)\n"
     fi
@@ -48,7 +58,7 @@ if [[ -f "$file_path" ]]; then
     fi
 
     # Check for catch (error: any)
-    catch_any=$(grep -n "catch.*:.*any" "$file_path" 2>/dev/null | head -3 || true)
+    catch_any=$(grep -nE 'catch[[:space:]]*\([^)]*:[[:space:]]*any\b' "$file_path" 2>/dev/null | head -3 || true)
     if [[ -n "$catch_any" ]]; then
         violations+="\n'catch (error: any)' DETECTED (BLOCKING)\n$catch_any\n\nAlways use 'unknown' for caught errors:\n  catch (error: unknown) {\n    if (error instanceof Error) {\n      logger.error(error.message)\n    }\n  }\n"
     fi

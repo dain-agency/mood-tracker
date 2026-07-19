@@ -6,6 +6,10 @@ These rules ensure consistent UI across Herbert. AI-generated code must reuse ex
 
 - **ENFORCE NOW** — these patterns exist today and must be followed
 
+## Related rules
+
+- `.claude/rules/component-defaults.md` — AD-10 / AD-11 / AD-12: how every component in `packages/ui/` declares its defaults; how app-specific defaults belong in app-local wrappers; why `packages/ui/` never references an app by name. Enforced by the permanent `prd-018-defaults-required.sh`, `prd-018-no-master-fork.sh`, and `prd-018-no-app-name-branch.sh` hooks.
+
 ---
 
 ## Component Hierarchy (ENFORCE NOW)
@@ -145,7 +149,7 @@ import { MasterTable, useTable, PRESET_ENTITY_LIST } from '@/components/organism
 3. **NEVER** use raw `<form>`, `<input>`, `<select>` HTML elements — use shadcn-ui form primitives at minimum
 4. Every form MUST have a Zod schema shared with the API endpoint
 5. Use `autosave` option for forms used by mobile care staff
-6. Multi-step wizard forms MUST use `WizardDialog` from `@/components/composed/wizard-dialog` + `useWizard` from `@/lib/hooks/use-wizard`. Never reimplement step navigation manually.
+6. Multi-step wizard **dialogs** MUST use `WizardDialog` from `@/components/composed/wizard-dialog` + the canonical `useWizard` from `@/lib/hooks/use-wizard` (the `@herbert/ui` hook; API `{ totalSteps, validateStep }`). Never reimplement step navigation manually. **Two same-named hooks exist** (PRD-018 M11a): this canonical *System 1*, and a web-local *System 2* at `@/components/layout/use-wizard` (API `{ steps, initialStep }`) that is the companion hook of the `@herbert/ui` `MultiStepFormShell`, scoped to the multi-step-form archetype (enquiry-form). Use System 1 for dialogs; only the `MultiStepFormShell` uses System 2.
 7. **`required` prop is mandatory for required fields** — `FormField` accepts a `required` prop that renders a visible `*` marker on the label (using `text-destructive` or `text-muted-foreground` per the design token) AND sets `required` + `aria-required="true"` on the underlying input. Any `FormField` bound to a Zod field using `.min(1)` or a non-optional schema type MUST pass `required={true}`. Note: the `required` prop rendering is Wave 1b T1 (the component must accept the prop before this rule is fully enforced — track in Wave 1b manifest).
 8. **Copy must not lie about required fields** — if a dialog or form contains the copy "Fields marked with * are required" or similar, at least one `FormField` in that form MUST have `required={true}` and render a visible `*`. Mismatched copy is a BLOCK (see Wave 1 Contacts finding).
 9. **Build-time check (ship-ui-builder)** — if dialog copy contains "required" or "mandatory", grep the same file for `required={true}`. If none found, it is a copy lie — flag as BLOCK before shipping.

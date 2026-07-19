@@ -1,38 +1,18 @@
 ---
 name: storybook-gotchas
-description: >
-  Storybook gotchas — auto-invoked when writing .stories.tsx files, Storybook config,
-  or debugging Storybook rendering issues. Lightweight index pointing to docs/gotchas/GOTCHAS.md.
+description: Live Dev KB query for .stories.tsx files, Storybook config and Chromatic. Replaces the drifted static index (2026-07-18).
 user-invocable: true
-disable-model-invocation: false
 ---
 
-# Storybook Gotchas — Quick Reference
+# Storybook Gotchas (live KB wrapper)
 
-Before writing Storybook stories, debugging story rendering, or configuring Storybook, scan this checklist. If an item applies, load the full section from `docs/gotchas/GOTCHAS.md` using:
-```
-Grep "ANCHOR: <id>" in docs/gotchas/GOTCHAS.md → Read from that line, limit=30
-```
+The static index this skill used to carry drifted from its GOTCHAS.md anchors and was retired (KB 35bd031e; audit 2026-07-18 §4 R4). This skill is now a thin wrapper over the live Dev KB.
 
-## Loading & Performance
+Run this query (DainOS MCP, resource `dev_knowledge_base`; psql fallback on `developer.dev_knowledge_base`):
 
-| When you... | Gotcha | Anchor |
-|---|---|---|
-| See spinner that never resolves on first load | Vite pre-bundling takes 30-60s on first load with 700+ stories. Wait or clear caches. | `storybook-first-load-hang` |
-| Use `file:` linked monorepo packages | Transitive dependencies resolve from linked package's node_modules, not the project's. Blank iframe, no errors. | `storybook-file-link-deps` |
+- **Tags (any of):** storybook, chromatic, design-system
+- **Project:** current repo's slug AND `universal` (never one slug alone — KB 086aa8e8)
+- **Order:** newest first, limit ~20; read `prevention` fields first.
+- If the work names a vendor or library, ALSO free-text search that name.
 
-## Data Table Stories
-
-| When you... | Gotcha | Anchor |
-|---|---|---|
-| Demo a table with `pagination: 'server'` | Client-side sorting/filtering are disabled by design. Use `'none'` or `'client'` for sample data. | `storybook-server-pagination-sorting` |
-| Enable filtering but no filter buttons appear | Columns need `meta: { variant: 'select' }` to render faceted filters. Flag alone is not enough. | `storybook-column-filter-meta` |
-| Change density via Storybook controls | Initial-value state doesn't sync with prop changes. Fixed in MasterTable; watch for same pattern elsewhere. | `storybook-density-sync` |
-
-## Testing & Vitest Integration
-
-| When you... | Gotcha | Anchor |
-|---|---|---|
-| Archetype/composition stories fail in vitest | Inline render functions cause NoRenderFunctionError. Add `!vitest` tag to meta AND configure/disable the storybookTest plugin in vitest.config.ts. Tag alone is not enough. | `storybook-vitest-no-render` |
-| Use Next.js navigation hooks in stories | useRouter/useSearchParams crash without router context. Wrap in try-catch; pass `urlSync: false`. | `nextjs-hooks-storybook-crash` |
-| Use TanStack Table column defs in stories | Cast columns to `ColumnDef<T, unknown>[]` to fix generic variance. | `tanstack-table-columndef-variance` |
+Then proceed with the work, applying every relevant `prevention`. Log any NEW trap you hit back to the KB at wrap-up.

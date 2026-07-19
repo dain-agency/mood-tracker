@@ -2,22 +2,31 @@
 
 **MANDATORY before writing or editing ANY code file:**
 
-## SQL / Database / Supabase work
-Before writing or editing `.sql` files, RLS policies, triggers, migrations, Supabase config, or any `apps/api/` database interaction code:
-→ Invoke `/database-gotchas` (Skill tool with `skill: "database-gotchas"`)
+## The query, not the index
 
-## Frontend / React / Next.js work
-Before writing or editing `.tsx`, `.ts` component files in `apps/web/`, hooks, pages, or test files:
-→ Invoke `/frontend-gotchas` (Skill tool with `skill: "frontend-gotchas"`)
+The static skill indexes drifted from their GOTCHAS.md anchors (KB 35bd031e) and cannot keep up with ~20 new entries a week. Query the live Dev KB instead (DainOS MCP, resource `dev_knowledge_base`; or `psql` against `developer.dev_knowledge_base` when the MCP is unavailable):
 
-## Storybook work
-Before writing or editing `.stories.tsx` files, Storybook config, or debugging Storybook rendering:
-→ Invoke `/storybook-gotchas` (Skill tool with `skill: "storybook-gotchas"`)
+| Work about to start | Query |
+|---|---|
+| SQL / RLS / migrations / Supabase / Prisma | tags any-of: supabase, rls, postgres, prisma, migrations; project in (this repo's slug, universal) |
+| React / Next.js / hooks / forms / tests | tags any-of: react, nextjs, react-query, vitest, tailwind, zod; project in (this repo's slug, universal) |
+| Storybook / Chromatic | tags any-of: storybook, chromatic; project in (this repo's slug, universal) |
+| A named vendor (Connecteam, SharePoint, Salesforce, Documenso, Xero, Sage, Meta, Google, ...) | free-text search on the vendor name |
+| Worktrees / CI / hooks / agent tooling | tags any-of: worktree, ci, hooks, claude-code |
+
+Rules of use:
+
+1. **ALWAYS include the `universal` bucket.** The PR reviewer once missed 1,057 entries by hardcoding one project slug (KB 086aa8e8).
+2. **Read `prevention` fields first** — that is the actionable half of every entry.
+3. Limit to the most recent ~20 per query; broaden only on a hit that references older entries.
+4. An empty result means your filter is wrong more often than it means no knowledge exists (rule-dainos-mcp-interaction move 3).
 
 ## Why this matters
-This project has 20+ documented gotchas from production incidents and code review. Ignoring them causes repeated mistakes that cost hours to debug. The skills are lightweight indexes (~60 lines) that load in <1 second.
+
+The KB holds 3,100+ entries from production incidents and review. Sessions that skip the query re-discover known traps: the same fact has been logged up to five times because retrieval failed (audit 2026-07-18 §9.4). Ignoring it costs hours.
 
 ## When to skip
+
 - Reading/exploring code (no writes)
 - Editing documentation, configs, or non-code files
-- If you already invoked the relevant gotchas skill earlier in this conversation
+- If you already ran the relevant query earlier in this conversation

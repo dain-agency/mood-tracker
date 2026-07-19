@@ -33,13 +33,29 @@ fi
 violations=""
 
 # CHECK 1: 'your-*' pattern
-matches=$(grep -n "['\"]^your-" "$file_path" 2>/dev/null | grep -v "^\s*//" | head -3 || true)
+matches=$(grep -nE "['\"]your-[a-z0-9-]+" "$file_path" 2>/dev/null | grep -v "^\s*//" | head -3 || true)
 if [[ -n "$matches" ]]; then
     violations+="\nPLACEHOLDER 'your-...' STRING DETECTED\n$matches\n\nReplace with actual value or read from config/environment.\n"
 fi
 
-# CHECK 2: CHANGEME / REPLACEME / PLACEHOLDER
-matches=$(grep -ni "CHANGEME\|REPLACEME\|PLACEHOLDER" "$file_path" 2>/dev/null | grep -v "^\s*//" | grep -v "// placeholder" | grep -vi 'placeholder=' | grep -vi 'placeholder:' | head -3 || true)
+# CHECK 2: CHANGEME / REPLACEME / PLACEHOLDER as a value inside a string
+# literal. Camel-cased identifiers like `placeholderLength` (legitimate
+# kibo-ui API field), `placeholderText`, etc. are not markers — the second
+# `grep -vE 'placeholder[A-Z]'` is case-sensitive so it filters those out
+# while still letting genuine string-literal placeholders trip the check.
+# Tailwind data-attribute variant classes (`data-[placeholder]:...`, emitted by
+# react-aria DateSegment for empty segments) are likewise legitimate, not
+# markers. They MUST be written as a single static literal so Tailwind's source
+# scanner can emit the rule. Obfuscating them to dodge this check silently
+# breaks the build, so `data-[placeholder` is allowlisted here.
+matches=$(grep -niE "['\"][^'\"]*(CHANGEME|REPLACEME|PLACEHOLDER)[^'\"]*['\"]" "$file_path" 2>/dev/null \
+    | grep -v "^\s*//" \
+    | grep -v "// placeholder" \
+    | grep -vi 'placeholder=' \
+    | grep -vi 'placeholder:' \
+    | grep -vi 'data-\[placeholder' \
+    | grep -vE 'placeholder[A-Z]' \
+    | head -3 || true)
 if [[ -n "$matches" ]]; then
     violations+="\nPLACEHOLDER MARKER DETECTED\n$matches\n\nReplace with actual implementation.\n"
 fi

@@ -1,69 +1,18 @@
 ---
 name: gotchas
-description: >
-  Project gotchas reference — curated index of known pitfalls. Use before writing code
-  (builders check relevant sections), during review (reviewers verify gotchas weren't introduced),
-  and during planning (plan writer tags tasks with relevant gotchas).
+description: Live Dev KB query wrapper for known pitfalls. Use before writing code, during review, and during planning. Replaces the drifted static index (2026-07-18).
 user-invocable: true
-disable-model-invocation: false
 ---
 
-# Gotchas — Section-Aware Reference
+# Gotchas (live KB wrapper)
 
-`docs/gotchas/GOTCHAS.md` contains hard-won knowledge from production debugging. Do NOT load the entire file. Each section is marked with `<!-- ANCHOR: id -->` comments for stable lookup.
+The static index this skill used to carry drifted from its GOTCHAS.md anchors and was retired (KB 35bd031e; audit 2026-07-18 §4 R4). This skill is now a thin wrapper over the live Dev KB.
 
-## How to Load a Section
+Run this query (DainOS MCP, resource `dev_knowledge_base`; psql fallback on `developer.dev_knowledge_base`):
 
-Use `Grep` to find the anchor, then `Read` from that line:
+- **Tags (any of):** the module tags for the domains being touched; when unsure: react, nextjs, prisma, supabase, rls, zod, ci, worktree
+- **Project:** current repo's slug AND `universal` (never one slug alone — KB 086aa8e8)
+- **Order:** newest first, limit ~20; read `prevention` fields first.
+- If the work names a vendor or library, ALSO free-text search that name.
 
-```
-1. Grep for "ANCHOR: <id>" in docs/gotchas/GOTCHAS.md to get the line number
-2. Read(file_path="docs/gotchas/GOTCHAS.md", offset=<line>, limit=40)
-```
-
-## Pre-Build Checklist
-
-**Before writing or modifying code**, scan this checklist. If any item applies, load the relevant GOTCHAS.md section and follow the documented pattern.
-
-### Frontend
-
-| Writing code that... | Check this rule | Anchor |
-|---|---|---|
-| Uses {{component_library}} components | Check default width/padding behaviour | `component-defaults` |
-| Imports an icon | Use {{icon_library}} only | `icon-library` |
-| Renders a select/dropdown for an entity ID | Use combobox component for lookups | `combobox-for-lookups` |
-| Writes any user-facing text | Check spelling conventions | `spelling-conventions` |
-| Manages server state (fetching, caching) | Use {{data_fetching_library}}, not useState+useEffect | `server-state-management` |
-
-### Backend
-
-| Writing code that... | Check this rule | Anchor |
-|---|---|---|
-| Queries the database | Always use tenant-scoped queries | `tenant-isolation` |
-| Accepts user input (POST/PATCH/PUT) | Zod schema validation required on every route | `zod-validation-required` |
-
-## Ship Pipeline Integration
-
-### For Plan Writers
-
-When creating task specs, scan this index and add a `gotchas` array to any task where checklist items apply.
-
-### For Builders
-
-If your task spec includes `gotchas`, read those sections before writing code.
-
-### For Reviewers
-
-After reviewing code quality, cross-reference the task's `gotchas` list against the implementation.
-
-## Recorded Root Causes Are Hypotheses
-
-A root cause recorded anywhere — a GOTCHAS.md section, a Knowledge Base entry, a task description, a PR comment, a session note — is a hypothesis frozen at the moment it was written, not a standing fact about the codebase. Before patching based on a previously-noted cause:
-
-1. **Re-verify the cause against CURRENT behaviour** — reproduce the failure, re-read the code path it blames. The code may have changed since the note was written, or the original diagnosis may simply have been wrong.
-2. **Only then patch.** A patch shaped by a stale or wrong diagnosis can compile, pass tests, and still miss the real defect.
-3. **If re-verification contradicts the record, fix the record in the same session** — update the GOTCHAS.md section or KB entry so the next reader does not inherit the bad hypothesis.
-
-## When You Discover a New Gotcha
-
-Add it to `docs/gotchas/GOTCHAS.md` with an anchor comment, then update this skill index.
+Then proceed with the work, applying every relevant `prevention`. Log any NEW trap you hit back to the KB at wrap-up.

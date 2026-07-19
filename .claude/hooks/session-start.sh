@@ -7,7 +7,8 @@ set -uo pipefail
 
 echo "" >&2
 echo "=============================================================================" >&2
-echo "  mood-tracker STANDARDS ENABLED" >&2
+repo_name=$(basename -s .git "$(git remote get-url origin 2>/dev/null)" 2>/dev/null)
+echo "  ${repo_name:-project} STANDARDS ENABLED" >&2
 echo "=============================================================================" >&2
 echo "" >&2
 
@@ -70,6 +71,21 @@ fi
 echo "" >&2
 echo "=============================================================================" >&2
 echo "" >&2
+
+# =============================================================================
+# PROJECT DOSSIERS (DainOS) — instant orientation index
+# =============================================================================
+# Injects a <=500-token index of active project dossiers. The model pulls a
+# full dossier with `~/.dain-os/bin/dossier show <slug>` when the prompt names
+# one. Repo name MUST come from the remote, not the directory: worktrees can
+# live in branch-named dirs so a basename would be the branch slug.
+# The dossier CLI always exits 0 — a session start is never blocked by this.
+if [[ -x "$HOME/.dain-os/bin/dossier" ]]; then
+    repo=$(git remote get-url origin 2>/dev/null | sed -E 's#\.git$##; s#.*[:/]##') || true
+    if [[ -n "${repo:-}" ]]; then
+        "$HOME/.dain-os/bin/dossier" index --repo "$repo" 2>/dev/null || true
+    fi
+fi
 
 # Output context to stdout (will be added to Claude's context)
 echo "Standards active: TypeScript strict, no any, tests required, conventional commits."

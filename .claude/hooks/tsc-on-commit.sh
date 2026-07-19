@@ -36,8 +36,11 @@ echo "==========================================================================
 echo "  PRE-COMMIT: Running TypeScript check..." >&2
 echo "=============================================================================" >&2
 
-# Determine project root
-project_dir="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+# Determine project root. Prefer `git rev-parse --show-toplevel` so commits made
+# inside a worktree check the worktree's own TypeScript, not the main repo's.
+# CLAUDE_PROJECT_DIR (always set to the main repo by the harness) is only used
+# as a fallback when git is unavailable.
+project_dir="$(git rev-parse --show-toplevel 2>/dev/null || echo "${CLAUDE_PROJECT_DIR:-$(pwd)}")"
 if [[ "$command" =~ ^cd[[:space:]]+(\"([^\"]+)\"|([^[:space:]]\&]+)) ]]; then
     worktree_dir="${BASH_REMATCH[2]:-${BASH_REMATCH[3]}}"
     if [[ -d "$worktree_dir/apps" ]]; then
@@ -67,12 +70,25 @@ fi
 
 # =============================================================================
 # CHECK: Stale Prisma client after schema change
+#
+# Npm/pnpm/yarn workspaces hoist transitive deps. The Prisma client could be
+# at the workspace-local `apps/api/node_modules/.prisma/client/` OR at the
+# hoisted root `node_modules/.prisma/client/`. Pick whichever exists; if
+# neither exists, the client really is missing.
 # =============================================================================
 if echo "$staged_files" | grep -q "schema.prisma" 2>/dev/null; then
     schema_file="$project_dir/apps/api/prisma/schema.prisma"
-    client_index="$project_dir/apps/api/node_modules/.prisma/client/index.js"
+    workspace_client="$project_dir/apps/api/node_modules/.prisma/client/index.js"
+    hoisted_client="$project_dir/node_modules/.prisma/client/index.js"
+    if [[ -f "$workspace_client" ]]; then
+        client_index="$workspace_client"
+    elif [[ -f "$hoisted_client" ]]; then
+        client_index="$hoisted_client"
+    else
+        client_index=""
+    fi
     if [[ -f "$schema_file" ]]; then
-        if [[ ! -f "$client_index" ]] || [[ "$schema_file" -nt "$client_index" ]]; then
+        if [[ -z "$client_index" ]] || [[ "$schema_file" -nt "$client_index" ]]; then
             echo "" >&2
             echo "=============================================================================" >&2
             echo "  PRE-COMMIT: Prisma client may be stale" >&2
@@ -91,6 +107,11 @@ errors=""
 filter_test_errors() {
     grep -vE '\.(test|spec)\.(ts|tsx)\(' | grep -v '__tests__/' || true
 }
+
+# tsc on this codebase regularly exceeds Node's default 4GB heap. Set 8GB
+# before any tsc invocation in this hook to match the documented Environment
+# Gate baseline (see /ship Phase 0.5 and CLAUDE.md's Workflow section).
+export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=8192}"
 
 # Check web app
 if [[ "$has_web_changes" == true ]] && [[ -f "$project_dir/apps/web/tsconfig.json" ]]; then

@@ -189,6 +189,6 @@ Run after each phase:
 ```bash
 cd apps/api && npx tsc --noEmit      # Backend types
 cd apps/web && npx tsc --noEmit      # Frontend types
-cd apps/api && npx {{orm_generate_cmd}}   # {{orm}} client (if schema changed)
+cd apps/api && {{orm_generate_cmd}}   # {{orm}} client (if schema changed)
 cd apps/web && npx {{testing_framework}} run src/domains/{domain}/  # Domain tests
 ```
