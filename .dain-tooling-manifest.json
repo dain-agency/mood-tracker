@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "installed_at": "2026-05-13T11:50:57.748Z",
-  "last_upgrade_at": "2026-07-28T10:34:00.069Z",
-  "library_snapshot_date": "2026-07-28",
+  "last_upgrade_at": "2026-07-29T09:00:07.292Z",
+  "library_snapshot_date": "2026-07-29",
   "tooling_version": "0.2.4",
   "project": {
     "name": "mood-tracker",
@@ -671,6 +671,14 @@
       "installed_at": "2026-05-14T09:00:52.785Z"
     },
     {
+      "slug": "rule-package-map",
+      "target_path": ".claude/rules/package-map.md",
+      "library_version": 1,
+      "installed_sha": "ee1afa1534220f1aaa10cd595e1917094b4b377d2657a09e7208b811c989f866",
+      "marker": "managed",
+      "installed_at": "2026-07-29T09:00:07.292Z"
+    },
+    {
       "slug": "rule-project-dossiers",
       "target_path": ".claude/rules/project-dossiers.md",
       "library_version": 1,
@@ -957,6 +965,14 @@
       "installed_sha": "bad1054fb5dd70aacbb1dde1c095fe936dd6c212cde039cb94f3a01f90ad671b",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.747Z"
+    },
+    {
+      "slug": "template-recipe-card",
+      "target_path": ".claude/templates/recipe-card.md",
+      "library_version": 1,
+      "installed_sha": "8161f54fff1cbca64b80a95e131e821e611de293feacca56e237666a0c95b91d",
+      "marker": "managed",
+      "installed_at": "2026-07-29T09:00:07.292Z"
     },
     {
       "slug": "tmpl-domain-index",
