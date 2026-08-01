@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "installed_at": "2026-05-13T11:50:57.748Z",
-  "last_upgrade_at": "2026-07-31T09:03:39.086Z",
-  "library_snapshot_date": "2026-07-31",
+  "last_upgrade_at": "2026-08-01T08:48:59.745Z",
+  "library_snapshot_date": "2026-08-01",
   "tooling_version": "0.2.4",
   "project": {
     "name": "mood-tracker",
@@ -649,8 +649,8 @@
     {
       "slug": "rule-gotchas-gate",
       "target_path": ".claude/rules/gotchas-gate.md",
-      "library_version": 2,
-      "installed_sha": "d0e8b1226cfac148e803cb75c8edcc80bb51ef8d49c533d155d50ff9b0724955",
+      "library_version": 3,
+      "installed_sha": "7bce88be23cb12b2659fa0877cb1aec865b7224ef18b646732bbe2474e3c2dc3",
       "marker": "managed",
       "installed_at": "2026-05-13T11:50:57.744Z"
     },
