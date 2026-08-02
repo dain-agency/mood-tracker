@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "installed_at": "2026-05-13T11:50:57.748Z",
-  "last_upgrade_at": "2026-08-01T08:48:59.745Z",
-  "library_snapshot_date": "2026-08-01",
+  "last_upgrade_at": "2026-08-02T08:50:11.146Z",
+  "library_snapshot_date": "2026-08-02",
   "tooling_version": "0.2.4",
   "project": {
     "name": "mood-tracker",
@@ -631,6 +631,22 @@
       "installed_at": "2026-05-13T11:50:57.743Z"
     },
     {
+      "slug": "rule-accessibility",
+      "target_path": ".claude/rules/accessibility.md",
+      "library_version": 1,
+      "installed_sha": "b2356560b479f1914b87bfac85cde3ba1f3c089b5e8635666939ba4d2c045ad2",
+      "marker": "managed",
+      "installed_at": "2026-08-02T08:50:11.146Z"
+    },
+    {
+      "slug": "rule-config-framework",
+      "target_path": ".claude/rules/config-framework.md",
+      "library_version": 1,
+      "installed_sha": "9b14fd0c32ecc4f16a116bd7f0c57ac4d6d9e7f928939b72a352dfddeab02b1d",
+      "marker": "managed",
+      "installed_at": "2026-08-02T08:50:11.146Z"
+    },
+    {
       "slug": "rule-core-rules",
       "target_path": ".claude/rules/core-rules.md",
       "library_version": 1,
@@ -673,8 +689,8 @@
     {
       "slug": "rule-package-map",
       "target_path": ".claude/rules/package-map.md",
-      "library_version": 1,
-      "installed_sha": "ee1afa1534220f1aaa10cd595e1917094b4b377d2657a09e7208b811c989f866",
+      "library_version": 2,
+      "installed_sha": "e1fd8bc32941e816079d6fb3b35ee21617a840ee25a7f2bf0570675b15f07900",
       "marker": "managed",
       "installed_at": "2026-07-29T09:00:07.292Z"
     },
@@ -969,8 +985,8 @@
     {
       "slug": "template-recipe-card",
       "target_path": ".claude/templates/recipe-card.md",
-      "library_version": 1,
-      "installed_sha": "8161f54fff1cbca64b80a95e131e821e611de293feacca56e237666a0c95b91d",
+      "library_version": 3,
+      "installed_sha": "6919031621d6c0399fdd716bc721c6440f52324da42ee82b5d04973913d0f077",
       "marker": "managed",
       "installed_at": "2026-07-29T09:00:07.292Z"
     },
