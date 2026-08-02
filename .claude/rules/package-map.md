@@ -44,6 +44,9 @@ Concepts may be COMPOSED across packages; their data shape and semantics have ex
 | Notification delivery & channels | `services/notifications` | Platform requests; UI shows badges |
 | External event envelopes (e.g. `medication.dose.missed`) | `services/integrations` (normalised envelope) | Engine config decides what happens next |
 | Person (resident, staff, relative, GP) | `platform/master-data` | Everything references by id; no local person shapes |
+| **Accessibility & communication profile (the passport)** | `platform/master-data` (structured data on the person record) | UI/Portal render from it; Engine views select variants by it; notifications respect it; NEVER duplicated per-surface (see rule-accessibility) |
+| **Content alternatives (plain-English, easy-read, symbol/photo, audio)** | `platform/engine-collections` (variant model on content) | Views select the variant per viewer profile |
+| **User-facing strings & wording** | message catalogue — mechanism in `ui`, content as data | No hardcoded user-facing strings anywhere (translation-readiness) |
 | Document files & storage | `services/documents` | Platform `record-linking` owns the LINKS between records and documents |
 | Obligation / deadline semantics | `platform/obligations` | Engine config may create them; UI renders countdowns |
 | Audit event shape | `platform/audit` — append-only, one-way-door territory | Everything emits; nothing redefines |
@@ -68,3 +71,4 @@ Adding a new cross-cutting concept? Name its owner in your recipe card BEFORE bu
 - Retry logic for an API → services/integrations shell. A Camascope-specific field mapping → that adapter's folder.
 - "Who can see room 14's residents" → platform/permissions. The lock icon → ui.
 - A new view type → ui/engine-views + capability declaration. A new client's dashboard → Engine CONFIG, no code at all.
+- A person's accessibility needs → the passport on platform/master-data. How a screen adapts to them → ui/portal reading the profile. The easy-read version of a policy → a content variant in engine-collections, never a second page.
