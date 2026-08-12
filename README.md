@@ -102,6 +102,21 @@ npm start
 
 ### 5. Set Up Daily Triggers
 
+> **The daily check-in is currently switched off (August 2026).** The team stopped
+> replying to it, so the `crons` block was removed from `vercel.json`. Nothing else
+> about the bot changed: `/mood`, `/my-moods`, the emoji buttons and the context
+> modal all still work, and the handler at `api/cron/daily-checkin.ts` is untouched.
+>
+> To turn it back on, restore the `crons` block and redeploy:
+>
+> ```json
+> "crons": [{ "path": "/api/cron/daily-checkin", "schedule": "0 9 * * 1-5" }]
+> ```
+>
+> Also set `is_active = true` on the matching row in dain-os
+> `monitoring.external_cron_sources` (`external_id = '/api/cron/daily-checkin'`),
+> or the Monitoring Hub will not expect runs and will not alert if they stop.
+
 The bot needs to be triggered daily to send check-ins. Options:
 
 #### Option A: GitHub Actions (recommended for simplicity)
